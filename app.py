@@ -31,36 +31,206 @@ st.set_page_config(
 )
 
 
-# ---------- Custom CSS (dark theme polish) ----------------------------------
+# ---------- Custom CSS — Revolut design language ----------------------------
 st.markdown(
     f"""
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
-    .stApp {{ background-color: {COLORS['bg']}; }}
+    /* ----- Global ----- */
+    html, body, [class*="css"], .stApp, .stMarkdown, p, span, div, li, label {{
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        letter-spacing: 0.16px;
+    }}
+    .stApp {{
+        background-color: {COLORS['bg']};
+        color: {COLORS['text']};
+    }}
+    /* Display typography — Manrope as Aeonik Pro substitute */
+    h1, h2, h3, h4, .display {{
+        font-family: 'Manrope', 'Inter', sans-serif !important;
+        font-weight: 500 !important;
+        color: {COLORS['text']};
+    }}
+    h1 {{
+        font-size: 56px !important;
+        line-height: 1.0 !important;
+        letter-spacing: -0.04em !important;
+        font-weight: 500 !important;
+        margin-bottom: 12px !important;
+    }}
+    h2 {{
+        font-size: 32px !important;
+        line-height: 1.19 !important;
+        letter-spacing: -0.01em !important;
+        font-weight: 500 !important;
+    }}
+    h3 {{
+        font-size: 22px !important;
+        line-height: 1.33 !important;
+        letter-spacing: 0 !important;
+        font-weight: 500 !important;
+    }}
+    h4, h5, h6 {{
+        font-size: 18px !important;
+        line-height: 1.4 !important;
+        letter-spacing: 0 !important;
+        font-weight: 500 !important;
+    }}
+
+    /* ----- Cards (Revolut feature-card-dark) ----- */
     .metric-card {{
         background: {COLORS['card']};
         border: 1px solid {COLORS['divider']};
-        border-radius: 12px;
-        padding: 16px 18px;
+        border-radius: 20px;
+        padding: 24px 26px;
         height: 100%;
     }}
-    .metric-card h3 {{ margin: 0; font-size: 1.4rem; color: {COLORS['text']}; }}
-    .metric-card .sub {{ color: {COLORS['muted']}; font-size: 0.82rem; margin-bottom: 10px; }}
-    .metric-row {{ display:flex; justify-content:space-between; padding: 4px 0;
-                   border-top: 1px solid {COLORS['divider']}; font-size: 0.92rem; }}
+    .metric-card h3 {{
+        margin: 0 0 4px 0;
+        font-size: 24px !important;
+        font-weight: 500 !important;
+        letter-spacing: -0.01em;
+    }}
+    .metric-card .sub {{
+        color: {COLORS['muted']};
+        font-size: 13px;
+        margin-bottom: 14px;
+        letter-spacing: 0;
+    }}
+    .metric-row {{
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-top: 1px solid {COLORS['divider_soft']};
+        font-size: 14px;
+        letter-spacing: 0.16px;
+    }}
     .metric-row span:first-child {{ color: {COLORS['muted']}; }}
     .pos {{ color: {COLORS['positive']}; font-weight: 600; }}
     .neg {{ color: {COLORS['negative']}; font-weight: 600; }}
     .neu {{ color: {COLORS['text']}; font-weight: 600; }}
     .warn {{ color: {COLORS['warning']}; font-weight: 600; }}
-    .badge {{ display:inline-block; padding: 2px 10px; border-radius: 999px;
-              font-size: 0.72rem; font-weight: 700; margin-top: 8px; }}
-    .badge-good {{ background: rgba(46,125,50,0.18); color: {COLORS['positive']}; }}
-    .badge-mid  {{ background: rgba(245,124,0,0.18); color: {COLORS['warning']}; }}
-    .badge-bad  {{ background: rgba(198,40,40,0.20); color: {COLORS['negative']}; }}
-    .source-pill {{ background: {COLORS['card']}; color: {COLORS['muted']};
-                    padding: 4px 10px; border-radius: 999px; font-size: 0.78rem;
-                    border: 1px solid {COLORS['divider']}; }}
-    section[data-testid="stSidebar"] {{ background-color: {COLORS['card']}; }}
+
+    /* ----- Pill badges (Revolut badge-tag / badge-feature) ----- */
+    .badge {{
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 9999px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.16px;
+        margin-top: 10px;
+    }}
+    .badge-good {{ background: rgba(0,168,126,0.18); color: {COLORS['positive']}; }}
+    .badge-mid  {{ background: rgba(236,126,0,0.18); color: {COLORS['warning']}; }}
+    .badge-bad  {{ background: rgba(226,59,74,0.20); color: {COLORS['negative']}; }}
+
+    /* Source pill (top-right data source indicator) */
+    .source-pill {{
+        background: {COLORS['card']};
+        color: {COLORS['muted']};
+        padding: 6px 14px;
+        border-radius: 9999px;
+        font-size: 13px;
+        font-weight: 500;
+        border: 1px solid {COLORS['divider']};
+    }}
+
+    /* ----- Buttons — Revolut pill style (white on dark) ----- */
+    .stButton > button, .stDownloadButton > button {{
+        background-color: {COLORS['text']} !important;
+        color: {COLORS['bg']} !important;
+        border: none !important;
+        border-radius: 9999px !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+        letter-spacing: 0.16px !important;
+        height: 44px !important;
+        padding: 10px 20px !important;
+        transition: background 120ms ease;
+    }}
+    .stButton > button:hover, .stDownloadButton > button:hover {{
+        background-color: {COLORS['faint']} !important;
+        color: {COLORS['bg']} !important;
+        border: none !important;
+    }}
+    .stButton > button:active, .stButton > button:focus {{
+        background-color: {COLORS['faint']} !important;
+        color: {COLORS['bg']} !important;
+        outline: 2px solid {COLORS['primary']} !important;
+        outline-offset: 2px;
+    }}
+
+    /* ----- Sliders — cobalt accent ----- */
+    [data-baseweb="slider"] [role="slider"] {{
+        background-color: {COLORS['primary']} !important;
+        border-color: {COLORS['primary']} !important;
+    }}
+    [data-baseweb="slider"] > div > div > div {{
+        background-color: {COLORS['primary']} !important;
+    }}
+
+    /* ----- Sidebar — slightly deeper than main canvas ----- */
+    section[data-testid="stSidebar"] {{
+        background-color: {COLORS['card_deep']};
+        border-right: 1px solid {COLORS['divider']};
+    }}
+    section[data-testid="stSidebar"] .stButton > button {{
+        height: 36px !important;
+        padding: 6px 14px !important;
+        font-size: 13px !important;
+    }}
+
+    /* ----- Inputs — Revolut text-input ----- */
+    .stDateInput input, .stTextInput input, .stNumberInput input {{
+        background-color: {COLORS['card']} !important;
+        color: {COLORS['text']} !important;
+        border: 1px solid {COLORS['divider']} !important;
+        border-radius: 12px !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 16px !important;
+        letter-spacing: 0.24px !important;
+    }}
+
+    /* ----- Dividers — subtle hairlines ----- */
+    hr {{
+        border-color: {COLORS['divider']} !important;
+        margin: 32px 0 !important;
+    }}
+
+    /* ----- Captions ----- */
+    .stCaption, [data-testid="stCaptionContainer"], small {{
+        color: {COLORS['muted']} !important;
+        font-size: 13px !important;
+        letter-spacing: 0 !important;
+    }}
+
+    /* ----- Alerts (warning, info) — Revolut feel ----- */
+    .stAlert {{
+        border-radius: 12px !important;
+        border: 1px solid {COLORS['divider']} !important;
+    }}
+
+    /* ----- DataFrame — match dark cards ----- */
+    [data-testid="stDataFrame"] {{
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid {COLORS['divider']};
+    }}
+
+    /* ----- Hero strip eyebrow above title ----- */
+    .hero-strip {{
+        font-family: 'Manrope', sans-serif;
+        font-weight: 500;
+        font-size: 13px;
+        letter-spacing: 0.24px;
+        color: {COLORS['muted']};
+        text-transform: uppercase;
+        margin-bottom: 8px;
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -146,12 +316,14 @@ corr = analysis.correlation(prices)
 # ---------- Header ----------------------------------------------------------
 hdr_left, hdr_right = st.columns([3, 1])
 with hdr_left:
-    st.title("📊 평균-분산 포트폴리오 분석 대시보드")
+    st.markdown("<div class='hero-strip'>Mean-Variance · Modern Portfolio Theory</div>",
+                unsafe_allow_html=True)
+    st.title("포트폴리오 분석 대시보드")
     actual_start = prices.index.min().date()
     actual_end = prices.index.max().date()
     years_covered = (actual_end - actual_start).days / 365.25
     st.caption(
-        f"분석 기간: **{actual_start} ~ {actual_end}** ({years_covered:.1f}년) · "
+        f"분석 기간 **{actual_start} → {actual_end}** ({years_covered:.1f}년) · "
         f"영업일 {len(prices):,}개 · 자산 {len(prices.columns)}개"
     )
     if (actual_start - start_date).days > 30:

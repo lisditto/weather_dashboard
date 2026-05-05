@@ -18,7 +18,7 @@ def _base_layout(**overrides) -> dict:
     base = dict(
         paper_bgcolor=PAPER_BG,
         plot_bgcolor=PLOT_BG,
-        font=dict(color=TEXT, family="-apple-system, Segoe UI, sans-serif"),
+        font=dict(color=TEXT, family="Inter, -apple-system, Segoe UI, sans-serif"),
         margin=dict(l=40, r=20, t=40, b=40),
         xaxis=dict(gridcolor=GRID, zerolinecolor=GRID),
         yaxis=dict(gridcolor=GRID, zerolinecolor=GRID),
@@ -138,9 +138,9 @@ def efficient_frontier_scatter(
     if max_sharpe:
         _marker(max_sharpe, COLORS["optimal"], "최대 샤프", "star")
     if min_vol:
-        _marker(min_vol, "#26C6DA", "최소 변동성", "diamond")
+        _marker(min_vol, COLORS["min_vol_marker"], "최소 변동성", "diamond")
     if current:
-        _marker(current, "#FF7043", "현재 포트폴리오", "circle")
+        _marker(current, COLORS["current_marker"], "현재 포트폴리오", "circle")
 
     fig.update_layout(
         **_base_layout(
