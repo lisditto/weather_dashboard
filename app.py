@@ -15,8 +15,7 @@ import streamlit as st
 
 from portfolio_dashboard import analysis, charts, data, portfolio
 from portfolio_dashboard.config import (
-    COLORS_DARK,
-    COLORS_LIGHT,
+    COLORS,
     DEFAULT_PERIOD_YEARS,
     DEFAULT_PORTFOLIO,
     EF_SIMULATIONS,
@@ -334,8 +333,6 @@ if "period_start" not in st.session_state:
     st.session_state.period_start = dt.date.today() - dt.timedelta(days=365 * DEFAULT_PERIOD_YEARS)
 if "period_end" not in st.session_state:
     st.session_state.period_end = dt.date.today()
-if "theme" not in st.session_state:
-    st.session_state.theme = "dark"
 
 
 def _reset_row_widgets() -> None:
@@ -363,18 +360,15 @@ if "url_loaded" not in st.session_state:
     st.session_state.url_loaded = True
 
 
-# ---------- Active theme & CSS injection -----------------------------------
-C = COLORS_DARK if st.session_state.theme == "dark" else COLORS_LIGHT
-charts.set_theme(C)
-st.html(_build_css(C))
+# ---------- Theme + CSS (single light palette) -----------------------------
+charts.set_theme(COLORS)
+st.html(_build_css(COLORS))
 
 
-# ---------- Mobile layout helper -------------------------------------------
+# ---------- Compact layout helper ------------------------------------------
 def _cols(*ratios: float) -> list:
-    """Return st.columns in desktop mode, or stacked containers in mobile mode."""
-    if st.session_state.get("mobile_mode", False):
-        return [st.container() for _ in ratios]
-    return st.columns(list(ratios))
+    """Always stack vertically — unified compact layout per design spec."""
+    return [st.container() for _ in ratios]
 
 
 # ---------- Cached data functions (module-level for reliable caching) ------
@@ -414,28 +408,6 @@ def cached_forward_mc(prices_csv: str, weights_str: str, years: int, initial: fl
 
 # ---------- Sidebar -----------------------------------------------------------
 with st.sidebar:
-    st.markdown("<div class='section-eyebrow'>Appearance</div>", unsafe_allow_html=True)
-    _is_dark = st.session_state.theme == "dark"
-    _new_dark = st.toggle(
-        "Dark mode",
-        value=_is_dark,
-        key="theme_toggle",
-        help="Switch between dark and light themes",
-    )
-    if _new_dark != _is_dark:
-        st.session_state.theme = "dark" if _new_dark else "light"
-        st.rerun()
-
-    mobile_mode = st.toggle(
-        "Compact layout",
-        value=st.session_state.get("mobile_mode", False),
-        key="mobile_toggle",
-        help="Stack columns vertically for narrow screens",
-    )
-    st.session_state.mobile_mode = mobile_mode
-
-    st.divider()
-
     st.markdown("<div class='section-eyebrow'>Portfolio</div>", unsafe_allow_html=True)
     st.markdown("### 보유 종목")
     st.caption("티커와 비중을 입력하세요 — 예: AAPL, BTC-USD, 005930.KS")
