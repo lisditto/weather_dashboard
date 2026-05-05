@@ -1,11 +1,11 @@
-"""Plotly chart builders following the visualization spec."""
+"""Plotly chart builders. Color maps are now passed at call time."""
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 
-from .config import ASSETS, COLORS
+from .config import COLORS
 
 PLOT_BG = COLORS["card"]
 PAPER_BG = COLORS["card"]
@@ -29,8 +29,10 @@ def _base_layout(**overrides) -> dict:
     return base
 
 
-def price_line_chart(normalized: pd.DataFrame, returns: pd.DataFrame) -> go.Figure:
-    """2-1: Normalized price line chart (first day = 100)."""
+def price_line_chart(
+    normalized: pd.DataFrame, returns: pd.DataFrame, color_map: dict[str, str]
+) -> go.Figure:
+    """Normalized price line chart (first day = 100)."""
     fig = go.Figure()
     for ticker in normalized.columns:
         ret = returns[ticker].reindex(normalized.index).fillna(0) * 100
@@ -40,7 +42,7 @@ def price_line_chart(normalized: pd.DataFrame, returns: pd.DataFrame) -> go.Figu
                 y=normalized[ticker],
                 name=ticker,
                 mode="lines",
-                line=dict(color=ASSETS[ticker]["color"], width=2),
+                line=dict(color=color_map.get(ticker, "#888"), width=2),
                 customdata=np.stack([ret.values], axis=-1),
                 hovertemplate=(
                     f"<b>{ticker}</b><br>"
@@ -63,7 +65,6 @@ def price_line_chart(normalized: pd.DataFrame, returns: pd.DataFrame) -> go.Figu
 
 
 def correlation_heatmap(corr: pd.DataFrame) -> go.Figure:
-    """2-2: Correlation heatmap with RdBu_r palette, fixed -1..1."""
     z = corr.values
     text = [[f"{v:.2f}" for v in row] for row in z]
     fig = go.Figure(
@@ -85,7 +86,6 @@ def correlation_heatmap(corr: pd.DataFrame) -> go.Figure:
         **_base_layout(
             title="자산 간 상관관계 히트맵",
             height=480,
-            width=480,
             xaxis=dict(side="bottom", showgrid=False),
             yaxis=dict(autorange="reversed", showgrid=False),
         )
@@ -100,7 +100,6 @@ def efficient_frontier_scatter(
     max_sharpe: dict | None = None,
     min_vol: dict | None = None,
 ) -> go.Figure:
-    """2-3: Scatter of simulated portfolios coloured by Sharpe (Viridis)."""
     fig = go.Figure()
     fig.add_trace(
         go.Scattergl(
@@ -154,11 +153,15 @@ def efficient_frontier_scatter(
     return fig
 
 
-def weights_donut(weights: dict[str, float], port_ret: float, port_vol: float) -> go.Figure:
-    """2-4: Donut showing portfolio weights with center stats."""
+def weights_donut(
+    weights: dict[str, float],
+    port_ret: float,
+    port_vol: float,
+    color_map: dict[str, str],
+) -> go.Figure:
     labels = list(weights.keys())
     values = [weights[t] * 100 for t in labels]
-    colors = [ASSETS[t]["color"] for t in labels]
+    colors = [color_map.get(t, "#888") for t in labels]
 
     fig = go.Figure(
         go.Pie(
@@ -192,12 +195,9 @@ def drawdown_chart(prices: pd.Series, ticker: str) -> go.Figure:
     dd = (prices / prices.cummax() - 1.0) * 100
     fig = go.Figure(
         go.Scatter(
-            x=dd.index,
-            y=dd.values,
-            mode="lines",
+            x=dd.index, y=dd.values, mode="lines",
             line=dict(color=COLORS["negative"], width=1.5),
-            fill="tozeroy",
-            fillcolor="rgba(198,40,40,0.25)",
+            fill="tozeroy", fillcolor="rgba(198,40,40,0.25)",
             name=f"{ticker} MDD",
             hovertemplate="%{x|%Y-%m-%d}<br>낙폭: %{y:.2f}%<extra></extra>",
         )

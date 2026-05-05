@@ -1,74 +1,108 @@
-"""Price data fetching with yfinance, with deterministic synthetic fallback."""
+"""Price data fetching with yfinance, with deterministic synthetic fallback.
+
+Now generic over an arbitrary list of tickers supplied at call time.
+"""
 from __future__ import annotations
 
 import datetime as dt
-from pathlib import Path
+import hashlib
 
 import numpy as np
 import pandas as pd
 
-from .config import TICKERS
 
-CACHE_DIR = Path(__file__).resolve().parent.parent / "data_cache"
+def _ticker_seed(ticker: str) -> int:
+    """Stable seed per ticker so synthetic series stay consistent across reruns."""
+    return int(hashlib.md5(ticker.encode()).hexdigest()[:8], 16)
 
 
-def _synthetic_prices(start: dt.date, end: dt.date) -> pd.DataFrame:
-    """Generate plausible price series when network is unavailable.
-
-    Uses GBM with asset-specific drift/vol so charts look realistic offline.
-    """
-    rng = np.random.default_rng(42)
+def _synthetic_prices(
+    tickers: list[str], start: dt.date, end: dt.date
+) -> pd.DataFrame:
+    """Generate plausible price series via GBM with per-ticker deterministic params."""
     dates = pd.bdate_range(start=start, end=end)
     n = len(dates)
-
-    params = {
-        "SPY": (0.10, 0.18, 400.0),
-        "TLT": (0.02, 0.15, 95.0),
-        "GLD": (0.06, 0.16, 180.0),
-        "VNQ": (0.07, 0.20, 85.0),
-    }
     out = {}
-    for ticker, (mu, sigma, p0) in params.items():
+    for t in tickers:
+        seed = _ticker_seed(t)
+        rng = np.random.default_rng(seed)
+        # Plausible ranges: drift 2-15%, vol 12-35%, starting price 50-300.
+        mu = 0.02 + (seed % 130) / 1000          # 0.02 ~ 0.15
+        sigma = 0.12 + (seed % 230) / 1000       # 0.12 ~ 0.35
+        p0 = 50 + (seed % 250)                    # 50 ~ 300
         dt_step = 1 / 252
-        shocks = rng.normal((mu - 0.5 * sigma**2) * dt_step, sigma * np.sqrt(dt_step), size=n)
+        shocks = rng.normal((mu - 0.5 * sigma**2) * dt_step,
+                            sigma * np.sqrt(dt_step), size=n)
         log_prices = np.log(p0) + np.cumsum(shocks)
-        out[ticker] = np.exp(log_prices)
+        out[t] = np.exp(log_prices)
     return pd.DataFrame(out, index=dates)
 
 
-def fetch_prices(start: dt.date, end: dt.date, *, force_synthetic: bool = False) -> tuple[pd.DataFrame, str]:
-    """Fetch adjusted close prices for ALL configured tickers.
+def fetch_prices(
+    tickers: list[str],
+    start: dt.date,
+    end: dt.date,
+    *,
+    force_synthetic: bool = False,
+) -> tuple[pd.DataFrame, str, list[str]]:
+    """Fetch adjusted close for the given tickers.
 
-    Returns (prices_df, source_label) where source_label ∈ {"yfinance", "synthetic"}.
+    Returns
+    -------
+    prices : DataFrame (ascending Date index, columns = valid tickers)
+    source : "yfinance" | "synthetic"
+    missing : tickers that returned no data (excluded from result)
     """
+    tickers = [t.strip().upper() for t in tickers if t and t.strip()]
+    if not tickers:
+        return pd.DataFrame(), "synthetic", []
+
     if force_synthetic:
-        return _synthetic_prices(start, end), "synthetic"
+        return _synthetic_prices(tickers, start, end), "synthetic", []
 
     try:
         import yfinance as yf
 
         df = yf.download(
-            TICKERS,
+            tickers,
             start=start.isoformat(),
             end=(end + dt.timedelta(days=1)).isoformat(),
             auto_adjust=True,
             progress=False,
             threads=True,
+            group_by="column",
         )
         if df is None or df.empty:
             raise RuntimeError("empty yfinance response")
 
+        # Normalize: yfinance returns MultiIndex when multiple tickers, single when one
         if isinstance(df.columns, pd.MultiIndex):
             close = df["Close"] if "Close" in df.columns.get_level_values(0) else df["Adj Close"]
         else:
-            close = df
+            close = df[["Close"]] if "Close" in df.columns else df
+            if isinstance(close, pd.Series):
+                close = close.to_frame(name=tickers[0])
+            elif close.shape[1] == 1 and len(tickers) == 1:
+                close.columns = [tickers[0]]
 
-        close = close[TICKERS].dropna(how="all").ffill().dropna()
-        if close.empty:
+        # Align column set to requested tickers; drop those with no usable data
+        missing = [t for t in tickers if t not in close.columns]
+        present = [t for t in tickers if t in close.columns]
+        close = close[present].ffill().dropna(how="all")
+
+        # Drop tickers that ended up entirely NaN
+        all_nan = [t for t in close.columns if close[t].isna().all()]
+        for t in all_nan:
+            missing.append(t)
+        close = close.drop(columns=all_nan, errors="ignore")
+        # Final intersection — only keep rows where ALL remaining tickers are present
+        close = close.dropna()
+
+        if close.empty or close.shape[1] == 0:
             raise RuntimeError("no overlapping data after cleaning")
-        return close, "yfinance"
+        return close, "yfinance", sorted(set(missing))
     except Exception:
-        return _synthetic_prices(start, end), "synthetic"
+        return _synthetic_prices(tickers, start, end), "synthetic", []
 
 
 def normalize(prices: pd.DataFrame) -> pd.DataFrame:
