@@ -1,7 +1,9 @@
-"""Static configuration: palette, defaults, constants.
+"""Static configuration: palette (shadcn/ui · zinc), defaults, constants.
 
-The dashboard now accepts arbitrary tickers from the user; per-asset
-metadata (color, label) is built at runtime in app.py from session state.
+Uses shadcn/ui design tokens (zinc neutral) for both light and dark themes —
+borders define surfaces, no shadows, monochrome primary, semantic colors
+for positive/negative/warning. Chart palette is theme-agnostic and uses
+distinct hue ramps for legibility against either canvas.
 """
 from __future__ import annotations
 
@@ -13,16 +15,17 @@ DEFAULT_PORTFOLIO: list[dict] = [
     {"ticker": "VNQ", "weight": 25.0},
 ]
 
-# Revolut accent palette — assigned to assets in order. Cycles if > 8 assets.
+# Per-asset chart palette — Tailwind 600-tier hues. Identical in both themes
+# (sufficient contrast against #fff and #09090b alike).
 PALETTE: list[str] = [
-    "#007bc2",  # accent-light-blue
-    "#00a87e",  # accent-teal
-    "#b09000",  # accent-yellow
-    "#e61e49",  # accent-pink
-    "#936d62",  # accent-brown
-    "#428619",  # accent-light-green
-    "#ec7e00",  # accent-warning
-    "#4f55f1",  # cobalt-bright (still distinguishable from primary brand stamp)
+    "#2563eb",  # blue-600
+    "#16a34a",  # green-600
+    "#d97706",  # amber-600
+    "#db2777",  # pink-600
+    "#7c3aed",  # violet-600
+    "#0891b2",  # cyan-600
+    "#65a30d",  # lime-600
+    "#dc2626",  # red-600
 ]
 
 
@@ -30,57 +33,59 @@ def color_for(index: int) -> str:
     return PALETTE[index % len(PALETTE)]
 
 
-# Revolut palette — true-black canvas + cobalt-violet accent
-COLORS = {
-    # Canvas / surface
-    "bg": "#000000",
-    "card": "#16181a",
-    "card_deep": "#0a0a0a",
-    "divider": "rgba(255,255,255,0.12)",
-    "divider_soft": "rgba(255,255,255,0.06)",
-    # Text
-    "text": "#ffffff",
-    "muted": "rgba(255,255,255,0.72)",
-    "stone": "#8d969e",
-    "faint": "#c9c9cd",
-    # Brand
-    "primary": "#494fdf",
-    "primary_bright": "#4f55f1",
-    "primary_deep": "#3a40c4",
-    # Semantic
-    "positive": "#00a87e",
-    "negative": "#e23b4a",
-    "warning": "#ec7e00",
-    "neutral": "#8d969e",
-    "optimal": "#494fdf",
-    "min_vol_marker": "#ffffff",
-    "current_marker": "#e61e49",
+# shadcn/ui zinc — dark theme
+COLORS_DARK: dict = {
+    "bg": "#09090b",          # zinc-950
+    "card": "#09090b",
+    "card_deep": "#0a0a0a",   # sidebar surface (very subtle offset)
+    "divider": "#27272a",     # zinc-800
+    "divider_soft": "#18181b",  # zinc-900
+    "text": "#fafafa",        # zinc-50
+    "muted": "#a1a1aa",       # zinc-400
+    "stone": "#71717a",       # zinc-500
+    "faint": "#52525b",       # zinc-600
+    "primary": "#fafafa",     # inverted: white button on dark
+    "primary_bright": "#ffffff",
+    "primary_deep": "#e4e4e7",
+    "positive": "#22c55e",    # green-500
+    "negative": "#ef4444",    # red-500
+    "warning": "#f59e0b",     # amber-500
+    "neutral": "#71717a",
+    "optimal": "#fafafa",
+    "min_vol_marker": "#a1a1aa",
+    "current_marker": "#ef4444",
 }
 
-COLORS_DARK = COLORS  # backward-compat alias used by charts.set_theme
-
-# Revolut light palette — same brand accent, light canvas
+# shadcn/ui zinc — light theme
 COLORS_LIGHT: dict = {
-    "bg": "#f5f5f7",
+    "bg": "#ffffff",
     "card": "#ffffff",
-    "card_deep": "#ebebed",
-    "divider": "rgba(0,0,0,0.10)",
-    "divider_soft": "rgba(0,0,0,0.05)",
-    "text": "#0a0a0a",
-    "muted": "rgba(0,0,0,0.55)",
-    "stone": "#6b7280",
-    "faint": "#374151",
-    "primary": "#494fdf",
-    "primary_bright": "#4f55f1",
-    "primary_deep": "#3a40c4",
-    "positive": "#007a5c",
-    "negative": "#c0392b",
-    "warning": "#b85c00",
-    "neutral": "#6b7280",
-    "optimal": "#494fdf",
+    "card_deep": "#fafafa",   # sidebar
+    "divider": "#e4e4e7",     # zinc-200
+    "divider_soft": "#f4f4f5",  # zinc-100
+    "text": "#09090b",        # zinc-950
+    "muted": "#52525b",       # zinc-600 — passes WCAG AA on white
+    "stone": "#71717a",       # zinc-500
+    "faint": "#3f3f46",       # zinc-700
+    "primary": "#18181b",     # zinc-900 — black button
+    "primary_bright": "#27272a",
+    "primary_deep": "#000000",
+    "positive": "#16a34a",    # green-600
+    "negative": "#dc2626",    # red-600
+    "warning": "#d97706",     # amber-600
+    "neutral": "#52525b",
+    "optimal": "#18181b",
     "min_vol_marker": "#000000",
-    "current_marker": "#c0392b",
+    "current_marker": "#dc2626",
 }
+
+# Default theme reference (legacy alias used by charts module init)
+COLORS = COLORS_DARK
+
+TRADING_DAYS = 252
+RISK_FREE_RATE = 0.0
+DEFAULT_PERIOD_YEARS = 5
+EF_SIMULATIONS = 5000
 
 TRADING_DAYS = 252
 RISK_FREE_RATE = 0.0

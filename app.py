@@ -25,130 +25,208 @@ from portfolio_dashboard.config import (
 )
 
 st.set_page_config(
-    page_title="포트폴리오 분석 대시보드",
-    page_icon="📊",
+    page_title="Portfolio Analytics",
+    page_icon="◐",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 
-# ---------- Theme-aware CSS builder ----------------------------------------
+# ---------- Theme-aware CSS builder (shadcn/ui · zinc) ---------------------
 def _build_css(C: dict) -> str:
     return textwrap.dedent(f"""
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-html, body, [class*="css"], .stApp, .stMarkdown, p, span, div, li, label {{
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  letter-spacing: 0.16px;
+:root {{
+  --bg: {C['bg']};
+  --card: {C['card']};
+  --card-deep: {C['card_deep']};
+  --border: {C['divider']};
+  --border-soft: {C['divider_soft']};
+  --fg: {C['text']};
+  --muted-fg: {C['muted']};
+  --stone: {C['stone']};
+  --primary: {C['primary']};
+  --primary-fg: {C['bg']};
+  --positive: {C['positive']};
+  --negative: {C['negative']};
+  --warning: {C['warning']};
+  --radius: 8px;
 }}
-.stApp {{ background-color: {C['bg']}; color: {C['text']}; }}
-h1, h2, h3, h4, .display {{
-  font-family: 'Manrope', 'Inter', sans-serif !important;
-  font-weight: 500 !important;
-  color: {C['text']};
-}}
-h1 {{ font-size: 56px !important; line-height: 1.0 !important; letter-spacing: -0.04em !important; font-weight: 500 !important; margin-bottom: 12px !important; }}
-h2 {{ font-size: 32px !important; line-height: 1.19 !important; letter-spacing: -0.01em !important; font-weight: 500 !important; }}
-h3 {{ font-size: 22px !important; line-height: 1.33 !important; font-weight: 500 !important; }}
-h4, h5, h6 {{ font-size: 18px !important; line-height: 1.4 !important; font-weight: 500 !important; }}
 
+html, body, [class*="css"], .stApp, .stMarkdown, p, span, div, li, label {{
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  font-feature-settings: "cv11", "ss01", "cv02";
+  letter-spacing: 0;
+}}
+code, kbd, pre, .stCode {{ font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }}
+
+.stApp {{ background-color: var(--bg); color: var(--fg); }}
+
+h1, h2, h3, h4, h5, h6 {{
+  font-family: 'Inter', sans-serif !important;
+  color: var(--fg);
+  letter-spacing: -0.025em !important;
+}}
+h1 {{ font-size: 36px !important; line-height: 1.1 !important; font-weight: 600 !important; margin-bottom: 8px !important; }}
+h2 {{ font-size: 24px !important; line-height: 1.2 !important; font-weight: 600 !important; }}
+h3 {{ font-size: 18px !important; line-height: 1.3 !important; font-weight: 600 !important; }}
+h4, h5, h6 {{ font-size: 15px !important; line-height: 1.4 !important; font-weight: 500 !important; }}
+
+.section-eyebrow {{
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-fg);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}}
+
+/* shadcn Card */
 .metric-card {{
-  background: {C['card']};
-  border: 1px solid {C['divider']};
-  border-radius: 20px;
-  padding: 24px 26px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
   height: 100%;
 }}
-.metric-card h3 {{ margin: 0 0 4px 0; font-size: 24px !important; font-weight: 500 !important; letter-spacing: -0.01em; }}
-.metric-card .sub {{ color: {C['muted']}; font-size: 13px; margin-bottom: 14px; letter-spacing: 0; }}
+.metric-card h3 {{
+  margin: 0 0 2px 0;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+}}
+.metric-card .sub {{
+  color: var(--muted-fg);
+  font-size: 12px;
+  margin-bottom: 12px;
+}}
 .metric-row {{
   display: flex;
   justify-content: space-between;
-  padding: 8px 0;
-  border-top: 1px solid {C['divider_soft']};
-  font-size: 14px;
-  letter-spacing: 0.16px;
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid var(--border-soft);
+  font-size: 13px;
 }}
-.metric-row span:first-child {{ color: {C['muted']}; cursor: default; }}
-.metric-row span[title]:first-child {{ border-bottom: 1px dotted {C['stone']}; }}
-.pos {{ color: {C['positive']}; font-weight: 600; }}
-.neg {{ color: {C['negative']}; font-weight: 600; }}
-.neu {{ color: {C['text']}; font-weight: 600; }}
-.warn {{ color: {C['warning']}; font-weight: 600; }}
+.metric-row span:first-child {{ color: var(--muted-fg); cursor: default; }}
+.metric-row span[title]:first-child {{ border-bottom: 1px dotted var(--stone); }}
+.pos {{ color: var(--positive); font-weight: 500; font-variant-numeric: tabular-nums; }}
+.neg {{ color: var(--negative); font-weight: 500; font-variant-numeric: tabular-nums; }}
+.neu {{ color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; }}
+.warn {{ color: var(--warning); font-weight: 500; font-variant-numeric: tabular-nums; }}
 
+/* shadcn Badge — outline variant */
 .badge {{
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 9999px;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.16px;
-  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--card);
+  margin-top: 8px;
 }}
-.badge-good {{ background: rgba(0,168,126,0.18); color: {C['positive']}; }}
-.badge-mid  {{ background: rgba(236,126,0,0.18);  color: {C['warning']}; }}
-.badge-bad  {{ background: rgba(226,59,74,0.20);   color: {C['negative']}; }}
+.badge-good {{ color: var(--positive); border-color: color-mix(in srgb, var(--positive) 35%, var(--border)); }}
+.badge-mid  {{ color: var(--warning);  border-color: color-mix(in srgb, var(--warning) 35%, var(--border)); }}
+.badge-bad  {{ color: var(--negative); border-color: color-mix(in srgb, var(--negative) 35%, var(--border)); }}
 
+/* shadcn Button — default (primary) */
 .stButton > button, .stDownloadButton > button {{
-  background-color: {C['text']} !important;
-  color: {C['bg']} !important;
-  border: none !important;
-  border-radius: 9999px !important;
+  background-color: var(--primary) !important;
+  color: var(--primary-fg) !important;
+  border: 1px solid var(--primary) !important;
+  border-radius: var(--radius) !important;
   font-family: 'Inter', sans-serif !important;
-  font-weight: 600 !important;
+  font-weight: 500 !important;
   font-size: 14px !important;
-  letter-spacing: 0.16px !important;
-  height: 44px !important;
-  padding: 10px 20px !important;
-  transition: background 120ms ease;
+  letter-spacing: 0 !important;
+  height: 36px !important;
+  padding: 8px 14px !important;
+  box-shadow: 0 1px 2px 0 rgba(0,0,0,0.04);
+  transition: opacity 120ms ease;
 }}
 .stButton > button:hover, .stDownloadButton > button:hover {{
-  background-color: {C['faint']} !important;
-  color: {C['bg']} !important;
+  opacity: 0.9 !important;
+}}
+.stButton > button:focus, .stDownloadButton > button:focus {{
+  outline: 2px solid var(--fg) !important;
+  outline-offset: 2px;
 }}
 
+/* Slider — monochrome */
 [data-baseweb="slider"] [role="slider"] {{
-  background-color: {C['primary']} !important;
-  border-color: {C['primary']} !important;
+  background-color: var(--fg) !important;
+  border-color: var(--fg) !important;
 }}
-[data-baseweb="slider"] > div > div > div {{ background-color: {C['primary']} !important; }}
+[data-baseweb="slider"] > div > div > div {{ background-color: var(--fg) !important; }}
 
+/* Sidebar */
 section[data-testid="stSidebar"] {{
-  background-color: {C['card_deep']};
-  border-right: 1px solid {C['divider']};
+  background-color: var(--card-deep);
+  border-right: 1px solid var(--border);
 }}
 section[data-testid="stSidebar"] .stButton > button {{
-  height: 36px !important;
-  padding: 6px 14px !important;
+  height: 32px !important;
+  padding: 6px 12px !important;
   font-size: 13px !important;
 }}
 
-.stDateInput input, .stTextInput input, .stNumberInput input {{
-  background-color: {C['card']} !important;
-  color: {C['text']} !important;
-  border: 1px solid {C['divider']} !important;
-  border-radius: 12px !important;
+/* shadcn Input */
+.stDateInput input, .stTextInput input, .stNumberInput input,
+.stSelectbox div[data-baseweb="select"] > div {{
+  background-color: var(--bg) !important;
+  color: var(--fg) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
   font-family: 'Inter', sans-serif !important;
-  font-size: 16px !important;
-  letter-spacing: 0.24px !important;
+  font-size: 14px !important;
+  min-height: 36px !important;
+}}
+.stTextInput input:focus, .stNumberInput input:focus, .stDateInput input:focus {{
+  outline: 2px solid var(--fg) !important;
+  outline-offset: -1px;
+  border-color: var(--fg) !important;
 }}
 
-hr {{ border-color: {C['divider']} !important; margin: 32px 0 !important; }}
+hr {{ border: none !important; border-top: 1px solid var(--border) !important; margin: 24px 0 !important; }}
 
 .stCaption, [data-testid="stCaptionContainer"], small {{
-  color: {C['muted']} !important;
-  font-size: 13px !important;
+  color: var(--muted-fg) !important;
+  font-size: 12px !important;
 }}
 
-.stAlert {{ border-radius: 12px !important; border: 1px solid {C['divider']} !important; }}
+/* Alerts — shadcn-ish flat with border */
+.stAlert {{
+  border-radius: var(--radius) !important;
+  border: 1px solid var(--border) !important;
+  background: var(--card) !important;
+}}
 
+/* DataFrame */
 [data-testid="stDataFrame"] {{
-  border-radius: 12px;
+  border-radius: var(--radius);
   overflow: hidden;
-  border: 1px solid {C['divider']};
+  border: 1px solid var(--border);
 }}
+
+/* Expander — flat with border */
+[data-testid="stExpander"] {{
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  background: var(--card) !important;
+}}
+[data-testid="stExpander"] summary {{
+  font-weight: 600;
+  font-size: 15px;
+}}
+
+/* Toggle */
+[data-testid="stWidgetLabel"] label, .stToggle label {{ color: var(--fg); font-size: 14px; }}
 </style>
 """).strip()
 
@@ -183,7 +261,7 @@ if "url_loaded" not in st.session_state:
             if loaded:
                 st.session_state.portfolio = loaded
                 _reset_row_widgets()
-                st.toast("🔗 공유 링크에서 포트폴리오를 불러왔습니다.", icon="✅")
+                st.toast("공유 링크에서 포트폴리오를 불러왔습니다.")
         except Exception:
             pass
     st.session_state.url_loaded = True
@@ -240,31 +318,31 @@ def cached_forward_mc(prices_csv: str, weights_str: str, years: int, initial: fl
 
 # ---------- Sidebar -----------------------------------------------------------
 with st.sidebar:
-    # ── 화면 설정 ──────────────────────────────────────────────────────────
+    st.markdown("<div class='section-eyebrow'>Appearance</div>", unsafe_allow_html=True)
     _is_dark = st.session_state.theme == "dark"
     _new_dark = st.toggle(
-        "🌙 다크 모드",
+        "Dark mode",
         value=_is_dark,
         key="theme_toggle",
-        help="다크/라이트 테마를 전환합니다",
+        help="Switch between dark and light themes",
     )
     if _new_dark != _is_dark:
         st.session_state.theme = "dark" if _new_dark else "light"
         st.rerun()
 
     mobile_mode = st.toggle(
-        "📱 모바일 모드",
+        "Compact layout",
         value=st.session_state.get("mobile_mode", False),
         key="mobile_toggle",
-        help="좁은 화면에서 섹션을 세로로 쌓습니다",
+        help="Stack columns vertically for narrow screens",
     )
     st.session_state.mobile_mode = mobile_mode
 
     st.divider()
 
-    # ── 포트폴리오 편집 ───────────────────────────────────────────────────
-    st.markdown("### 💼 내 포트폴리오")
-    st.caption("티커와 비중을 입력하세요 (예: AAPL, BTC-USD, 005930.KS)")
+    st.markdown("<div class='section-eyebrow'>Portfolio</div>", unsafe_allow_html=True)
+    st.markdown("### 보유 종목")
+    st.caption("티커와 비중을 입력하세요 — 예: AAPL, BTC-USD, 005930.KS")
 
     rm_idx = None
     for i, asset in enumerate(st.session_state.portfolio):
@@ -281,7 +359,7 @@ with st.sidebar:
                 label_visibility="collapsed",
             )
         with c3:
-            if st.button("✕", key=f"rm_{i}", help="삭제", use_container_width=True):
+            if st.button("×", key=f"rm_{i}", help="삭제", use_container_width=True):
                 rm_idx = i
         color = color_for(i)
         st.markdown(
@@ -298,7 +376,7 @@ with st.sidebar:
         st.rerun()
 
     bc1, bc2 = st.columns(2)
-    if bc1.button("＋ 종목 추가", use_container_width=True):
+    if bc1.button("+ 종목 추가", use_container_width=True):
         st.session_state.portfolio.append({"ticker": "", "weight": 0.0})
         _reset_row_widgets()
         st.rerun()
@@ -313,16 +391,15 @@ with st.sidebar:
 
     total_weight = sum(a["weight"] for a in st.session_state.portfolio if a["ticker"])
     if abs(total_weight - 100) < 0.5:
-        st.caption(f"✅ 비중 합계 {total_weight:.1f}%")
+        st.caption(f"비중 합계 {total_weight:.1f}%")
     else:
-        st.caption(f"⚠️ 비중 합계 {total_weight:.1f}% — 자동 정규화하여 계산")
+        st.caption(f"비중 합계 {total_weight:.1f}% — 자동 정규화하여 계산")
 
-    # 공유 링크
     _share_p = ",".join(
         f"{a['ticker']}:{a['weight']:.1f}"
         for a in st.session_state.portfolio if a["ticker"]
     )
-    if st.button("🔗 공유 링크", use_container_width=True, help="이 포트폴리오를 URL로 공유"):
+    if st.button("공유 링크 생성", use_container_width=True, help="이 포트폴리오를 URL로 공유"):
         st.session_state.show_share = not st.session_state.get("show_share", False)
     if st.session_state.get("show_share") and _share_p:
         st.code(f"?p={_share_p}", language=None)
@@ -330,8 +407,8 @@ with st.sidebar:
 
     st.divider()
 
-    # ── 분석 기간 ─────────────────────────────────────────────────────────
-    st.markdown("### 📅 분석 기간")
+    st.markdown("<div class='section-eyebrow'>Period</div>", unsafe_allow_html=True)
+    st.markdown("### 분석 기간")
     today = dt.date.today()
 
     p1, p2, p3 = st.columns(3)
@@ -369,7 +446,8 @@ with st.sidebar:
     )
 
     st.divider()
-    st.markdown("### 📊 벤치마크 비교")
+    st.markdown("<div class='section-eyebrow'>Benchmark</div>", unsafe_allow_html=True)
+    st.markdown("### 비교 지수")
     _BENCH_MAP = {
         "없음": "",
         "SPY (S&P 500)": "SPY",
@@ -385,7 +463,8 @@ with st.sidebar:
     bench_ticker = _BENCH_MAP[bench_label]
 
     st.divider()
-    st.markdown("### 🔮 미래 시뮬레이션")
+    st.markdown("<div class='section-eyebrow'>Forecast</div>", unsafe_allow_html=True)
+    st.markdown("### 미래 시뮬레이션")
     initial_inv = st.number_input(
         "초기 투자금 (원)", min_value=1_000_000, max_value=10_000_000_000,
         value=10_000_000, step=1_000_000, format="%d",
@@ -403,7 +482,7 @@ tickers = [a["ticker"] for a in valid_assets]
 raw_weights = {a["ticker"]: a["weight"] for a in valid_assets}
 
 if not tickers:
-    st.warning("👈 사이드바에서 분석할 종목 티커를 1개 이상 입력하세요.")
+    st.warning("사이드바에서 분석할 종목 티커를 1개 이상 입력하세요.")
     st.stop()
 
 prices, source, missing = load_prices(tuple(tickers), start_date, end_date, force_synth)
@@ -464,12 +543,12 @@ st.caption(
 )
 if missing:
     st.warning(
-        f"⚠️ 다음 티커는 데이터를 가져올 수 없어 제외되었습니다: **{', '.join(missing)}**. "
+        f"다음 티커는 데이터를 가져올 수 없어 제외되었습니다: **{', '.join(missing)}**. "
         f"오타이거나 상장폐지/거래정지된 종목일 수 있습니다."
     )
 if (actual_start - start_date).days > 30:
     st.info(
-        f"ℹ️ 일부 자산의 상장일이 늦어 실제 분석 시작일은 **{actual_start}** 입니다. "
+        f"일부 자산의 상장일이 늦어 실제 분석 시작일은 **{actual_start}** 입니다. "
         f"(여러 자산의 공통 데이터 구간 자동 적용)"
     )
 st.divider()
@@ -479,7 +558,8 @@ st.divider()
 sec1, sec2 = _cols(1.1, 1)
 
 with sec1:
-    st.subheader("1️⃣ 자산 현황")
+    st.markdown("<div class='section-eyebrow'>01 · Assets</div>", unsafe_allow_html=True)
+    st.subheader("자산 현황")
     n_card_cols = 2 if len(tickers) >= 2 else 1
     cards = st.columns(n_card_cols)
     for idx, ticker in enumerate(tickers):
@@ -533,7 +613,8 @@ with sec1:
     )
 
 with sec2:
-    st.subheader("2️⃣ 상관관계 분석")
+    st.markdown("<div class='section-eyebrow'>02 · Correlation</div>", unsafe_allow_html=True)
+    st.subheader("상관관계 분석")
     if len(tickers) >= 2:
         st.plotly_chart(charts.correlation_heatmap(corr), use_container_width=True)
         n = len(corr)
@@ -546,7 +627,7 @@ with sec2:
     else:
         st.info("상관관계 분석은 자산 2개 이상에서 가능합니다.")
 
-    with st.expander("📖 용어 설명"):
+    with st.expander("용어 설명"):
         st.markdown(
             """
 **비대각 상관계수 (Off-diagonal Correlation)**
@@ -568,7 +649,8 @@ st.divider()
 
 
 # ---------- SECTION 3: 포트폴리오 분석 -------------------------------------
-st.subheader("3️⃣ 포트폴리오 분석")
+st.markdown("<div class='section-eyebrow'>03 · Portfolio</div>", unsafe_allow_html=True)
+st.subheader("포트폴리오 분석")
 
 col_donut, col_metrics = _cols(1.1, 1)
 
@@ -598,7 +680,7 @@ with col_metrics:
             <span title="샤프 지수 = 수익률 ÷ 변동성">샤프 지수</span>
             <span class='{sharpe_cls}'>{stats.sharpe:.3f}</span></div>
           <div class='metric-row'><span>샤프 평가</span>
-            <span>{'🟢 우수' if stats.sharpe >= 1 else '🟠 보통' if stats.sharpe >= 0.5 else '🔴 낮음'}</span></div>
+            <span class='{sharpe_cls}'>{'우수' if stats.sharpe >= 1 else '보통' if stats.sharpe >= 0.5 else '낮음'}</span></div>
           <div class='metric-row'>
             <span title="Value at Risk: 95% 신뢰수준 기준 하루 최대 손실">VaR 95% (일)</span>
             <span class='neg'>-{var95*100:.2f}%</span></div>
@@ -634,7 +716,7 @@ with col_metrics:
     })
     csv_bytes = pd.DataFrame(export_rows).to_csv(index=False).encode("utf-8-sig")
     st.download_button(
-        "📥 분석 결과 CSV 다운로드", csv_bytes,
+        "분석 결과 CSV 다운로드", csv_bytes,
         file_name="portfolio_analysis.csv", mime="text/csv",
         use_container_width=True,
     )
@@ -643,7 +725,7 @@ st.divider()
 
 
 # ---------- SECTION 4: 포트폴리오 구성 추천 --------------------------------
-with st.expander("4️⃣ 포트폴리오 구성 추천 (Efficient Frontier)", expanded=True):
+with st.expander("04 · 포트폴리오 구성 추천 (Efficient Frontier)", expanded=True):
     if len(tickers) >= 2:
         sims = cached_simulate(prices.to_csv(), n_sims)
         max_sharpe_opt = portfolio.optimize(prices, "max_sharpe")
@@ -671,12 +753,12 @@ with st.expander("4️⃣ 포트폴리오 구성 추천 (Efficient Frontier)", e
                 })
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
             st.markdown(
-                f"- 🟡 **최대 샤프**: 수익률 {max_sharpe_opt.annual_return*100:+.2f}% / "
-                f"변동성 {max_sharpe_opt.annual_vol*100:.2f}% / 샤프 {max_sharpe_opt.sharpe:.3f}\n"
-                f"- 💎 **최소 변동성**: 수익률 {min_vol_opt.annual_return*100:+.2f}% / "
-                f"변동성 {min_vol_opt.annual_vol*100:.2f}% / 샤프 {min_vol_opt.sharpe:.3f}\n"
-                f"- 🟠 **현재**: 수익률 {stats.annual_return*100:+.2f}% / "
-                f"변동성 {stats.annual_vol*100:.2f}% / 샤프 {stats.sharpe:.3f}"
+                f"- **최대 샤프** — 수익률 {max_sharpe_opt.annual_return*100:+.2f}% · "
+                f"변동성 {max_sharpe_opt.annual_vol*100:.2f}% · 샤프 {max_sharpe_opt.sharpe:.3f}\n"
+                f"- **최소 변동성** — 수익률 {min_vol_opt.annual_return*100:+.2f}% · "
+                f"변동성 {min_vol_opt.annual_vol*100:.2f}% · 샤프 {min_vol_opt.sharpe:.3f}\n"
+                f"- **현재** — 수익률 {stats.annual_return*100:+.2f}% · "
+                f"변동성 {stats.annual_vol*100:.2f}% · 샤프 {stats.sharpe:.3f}"
             )
             if st.button("최대 샤프 비중 적용", use_container_width=True, key="apply_max"):
                 for i, t in enumerate(tickers):
@@ -697,7 +779,7 @@ with st.expander("4️⃣ 포트폴리오 구성 추천 (Efficient Frontier)", e
 
 
 # ---------- SECTION 5: 롤링 지표 -------------------------------------------
-with st.expander("5️⃣ 롤링 지표", expanded=False):
+with st.expander("05 · 롤링 지표", expanded=False):
     rolling_df = analysis.rolling_metrics(prices, w_array)
     st.plotly_chart(charts.rolling_metrics_chart(rolling_df), use_container_width=True)
     st.caption(
@@ -707,7 +789,7 @@ with st.expander("5️⃣ 롤링 지표", expanded=False):
 
 
 # ---------- SECTION 6: 리밸런싱 시뮬레이션 ----------------------------------
-with st.expander("6️⃣ 리밸런싱 시뮬레이션", expanded=False):
+with st.expander("06 · 리밸런싱 시뮬레이션", expanded=False):
     rb_raw = cached_rebalance(prices.to_csv(), ",".join(str(x) for x in w_array))
     rb_strategies = {
         k: pd.Series(vals, index=pd.to_datetime(dates))
@@ -736,7 +818,7 @@ with st.expander("6️⃣ 리밸런싱 시뮬레이션", expanded=False):
 
 
 # ---------- SECTION 7: 미래 가치 시뮬레이션 ---------------------------------
-with st.expander("7️⃣ 미래 가치 시뮬레이션", expanded=False):
+with st.expander("07 · 미래 가치 시뮬레이션", expanded=False):
     mc_df = cached_forward_mc(
         prices.to_csv(), ",".join(str(x) for x in w_array),
         mc_years, float(initial_inv),

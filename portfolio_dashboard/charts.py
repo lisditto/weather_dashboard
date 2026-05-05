@@ -170,7 +170,7 @@ def efficient_frontier_scatter(
                 x=[point["vol"] * 100],
                 y=[point["ret"] * 100],
                 mode="markers",
-                marker=dict(size=22, color=color, symbol=symbol, line=dict(color="white", width=1.5)),
+                marker=dict(size=18, color=color, symbol=symbol, line=dict(color=_C["bg"], width=2)),
                 name=label,
                 hovertemplate=(
                     f"<b>{label}</b><br>변동성: %{{x:.2f}}%<br>수익률: %{{y:.2f}}%"
@@ -192,7 +192,7 @@ def efficient_frontier_scatter(
             height=560,
             xaxis=dict(gridcolor=GRID, title="연간 변동성 (위험) %"),
             yaxis=dict(gridcolor=GRID, title="연간 기대수익률 %"),
-            legend=dict(x=0.01, y=0.99, bgcolor="rgba(15,17,23,0.6)"),
+            legend=dict(x=0.01, y=0.99, bgcolor=_C["card"], bordercolor=GRID, borderwidth=1),
         )
     )
     return fig
@@ -326,16 +326,17 @@ def forward_mc_chart(pct_df: pd.DataFrame, initial: float) -> go.Figure:
     idx = list(pct_df.index)
     fig = go.Figure()
 
+    # Neutral blue-500 fan band — works on both light and dark canvases
     fig.add_trace(go.Scatter(
         x=idx + idx[::-1],
         y=list(pct_df["p95"]) + list(pct_df["p5"])[::-1],
-        fill="toself", fillcolor="rgba(73,79,223,0.10)",
+        fill="toself", fillcolor="rgba(59,130,246,0.10)",
         line=dict(color="rgba(0,0,0,0)"), name="5–95%", hoverinfo="skip",
     ))
     fig.add_trace(go.Scatter(
         x=idx + idx[::-1],
         y=list(pct_df["p75"]) + list(pct_df["p25"])[::-1],
-        fill="toself", fillcolor="rgba(73,79,223,0.22)",
+        fill="toself", fillcolor="rgba(59,130,246,0.22)",
         line=dict(color="rgba(0,0,0,0)"), name="25–75%", hoverinfo="skip",
     ))
     for col, color, name, dash in [
