@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from portfolio_dashboard import analysis, charts, data, portfolio
+from portfolio_dashboard import analysis, auth as _auth, charts, data, portfolio
 from portfolio_dashboard.config import (
     COLORS,
     DEFAULT_PERIOD_YEARS,
@@ -171,6 +171,76 @@ hr {{ border-color: {COLORS['divider']} !important; margin: 32px 0 !important; }
 st.html(_CSS)
 
 
+# ---------- OAuth callback handling ----------------------------------------
+if _auth.handle_callback():
+    st.rerun()
+
+
+# ---------- Login page (shown when not authenticated) ----------------------
+def _login_page() -> None:
+    st.title("포트폴리오 분석 대시보드")
+    st.caption("Mean-Variance · Modern Portfolio Theory")
+    st.divider()
+
+    _, col, _ = st.columns([1, 1.4, 1])
+    with col:
+        st.markdown(
+            f"<div style='background:{COLORS['card']};border:1px solid {COLORS['divider']};"
+            f"border-radius:20px;padding:36px 32px;text-align:center'>"
+            f"<p style='font-size:22px;font-weight:600;margin-bottom:6px'>로그인</p>"
+            f"<p style='color:{COLORS['muted']};font-size:14px;margin-bottom:28px'>"
+            f"소셜 계정으로 간편 로그인하세요</p>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+        if _auth.has_naver():
+            naver_url = _auth.naver_login_url()
+            st.markdown(
+                f"<a href='{naver_url}' target='_self' style='"
+                f"display:block;width:100%;padding:13px 0;border-radius:9999px;"
+                f"background:#03C75A;color:#fff;font-weight:700;font-size:15px;"
+                f"text-align:center;text-decoration:none;letter-spacing:0.16px;"
+                f"margin-bottom:12px'>"
+                f"<img src='https://static.nid.naver.com/oauth/small_g_in.PNG' "
+                f"style='height:18px;vertical-align:middle;margin-right:8px'>"
+                f"네이버로 로그인</a>",
+                unsafe_allow_html=True,
+            )
+
+        if _auth.has_kakao():
+            kakao_url = _auth.kakao_login_url()
+            st.markdown(
+                f"<a href='{kakao_url}' target='_self' style='"
+                f"display:block;width:100%;padding:13px 0;border-radius:9999px;"
+                f"background:#FEE500;color:#191600;font-weight:700;font-size:15px;"
+                f"text-align:center;text-decoration:none;letter-spacing:0.16px;"
+                f"margin-bottom:12px'>"
+                f"<img src='https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_small.png' "
+                f"style='height:18px;vertical-align:middle;margin-right:8px'>"
+                f"카카오로 로그인</a>",
+                unsafe_allow_html=True,
+            )
+
+        if not _auth.has_naver() and not _auth.has_kakao():
+            st.warning(
+                "소셜 로그인 API 키가 설정되지 않았습니다.  \n"
+                "`.streamlit/secrets.toml`에 `NAVER_CLIENT_ID` 또는 "
+                "`KAKAO_CLIENT_ID`를 입력하세요."
+            )
+
+    st.divider()
+    st.caption(
+        "로그인 정보는 분석 세션 동안만 유지되며, 서버에 저장되지 않습니다."
+    )
+
+
+if not _auth.is_logged_in():
+    _login_page()
+    st.stop()
+
+
 # ---------- Session state init ---------------------------------------------
 if "portfolio" not in st.session_state:
     st.session_state.portfolio = [dict(a) for a in DEFAULT_PORTFOLIO]
@@ -195,6 +265,28 @@ def _reset_row_widgets() -> None:
 
 # ---------- Sidebar: portfolio editor + period --------------------------
 with st.sidebar:
+    user = _auth.current_user()
+    if user:
+        provider_label = "N" if user["provider"] == "naver" else "K"
+        provider_color = "#03C75A" if user["provider"] == "naver" else "#FEE500"
+        provider_text_color = "#fff" if user["provider"] == "naver" else "#191600"
+        st.markdown(
+            f"<div style='display:flex;align-items:center;gap:10px;margin-bottom:4px'>"
+            f"<span style='background:{provider_color};color:{provider_text_color};"
+            f"border-radius:9999px;width:24px;height:24px;display:inline-flex;"
+            f"align-items:center;justify-content:center;font-weight:700;font-size:12px'>"
+            f"{provider_label}</span>"
+            f"<span style='font-weight:600'>{user['name']}</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        if user.get("email"):
+            st.caption(user["email"])
+        if st.button("로그아웃", use_container_width=True, key="logout_btn"):
+            _auth.logout()
+            st.rerun()
+        st.divider()
+
     st.markdown("### 💼 내 포트폴리오")
     st.caption("티커와 비중을 입력하세요 (예: AAPL, BTC-USD, 005930.KS)")
 
