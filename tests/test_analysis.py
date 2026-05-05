@@ -57,3 +57,25 @@ def test_rebalance_backtest_starts_at_one(sample_prices, equal_weights):
     for series in out.values():
         assert abs(series.iloc[0] - 1.0) < 1e-9
         assert series.notna().all()
+
+
+def test_rebalance_cost_drag(sample_prices, equal_weights):
+    free = analysis.rebalance_backtest(sample_prices, equal_weights, cost_bps=0)
+    costly = analysis.rebalance_backtest(sample_prices, equal_weights, cost_bps=50)
+    pd.testing.assert_series_equal(free["매수 후 보유"], costly["매수 후 보유"])
+    assert costly["월간 리밸런싱"].iloc[-1] <= free["월간 리밸런싱"].iloc[-1] + 1e-9
+
+
+def test_regression_stats_self_benchmark(sample_prices, equal_weights):
+    bench = sample_prices.iloc[:, 0]
+    out = analysis.regression_stats(sample_prices, equal_weights, bench)
+    assert np.isfinite(out["beta"])
+    assert 0.0 <= out["r2"] <= 1.0
+    assert np.isfinite(out["alpha"])
+
+
+def test_sharpe_responds_to_rf(sample_prices):
+    rets = analysis.daily_returns(sample_prices)
+    s_low = analysis.sharpe_ratio(rets, rf=0.0)
+    s_high = analysis.sharpe_ratio(rets, rf=0.10)
+    assert (s_high <= s_low + 1e-12).all()

@@ -449,22 +449,22 @@ def _df_signature(df: pd.DataFrame) -> tuple:
 
 
 @st.cache_data(show_spinner="EF 시뮬레이션 중…", ttl=60 * 30)
-def _simulate_keyed(_prices: pd.DataFrame, _sig: tuple, n: int) -> pd.DataFrame:
-    return portfolio.simulate_frontier(_prices, n_sims=n)
+def _simulate_keyed(_prices: pd.DataFrame, _sig: tuple, n: int, rf: float) -> pd.DataFrame:
+    return portfolio.simulate_frontier(_prices, n_sims=n, rf=rf)
 
 
-def cached_simulate(prices: pd.DataFrame, n: int) -> pd.DataFrame:
-    return _simulate_keyed(prices, _df_signature(prices), n)
+def cached_simulate(prices: pd.DataFrame, n: int, rf: float) -> pd.DataFrame:
+    return _simulate_keyed(prices, _df_signature(prices), n, round(rf, 6))
 
 
 @st.cache_data(show_spinner="리밸런싱 시뮬레이션 중…", ttl=60 * 30)
-def _rebalance_keyed(_prices: pd.DataFrame, _sig: tuple, weights_key: tuple) -> dict[str, pd.Series]:
+def _rebalance_keyed(_prices: pd.DataFrame, _sig: tuple, weights_key: tuple, cost_bps: float) -> dict[str, pd.Series]:
     w = np.array(weights_key)
-    return analysis.rebalance_backtest(_prices, w)
+    return analysis.rebalance_backtest(_prices, w, cost_bps=cost_bps)
 
 
-def cached_rebalance(prices: pd.DataFrame, weights: np.ndarray) -> dict[str, pd.Series]:
-    return _rebalance_keyed(prices, _df_signature(prices), tuple(round(float(x), 6) for x in weights))
+def cached_rebalance(prices: pd.DataFrame, weights: np.ndarray, cost_bps: float) -> dict[str, pd.Series]:
+    return _rebalance_keyed(prices, _df_signature(prices), tuple(round(float(x), 6) for x in weights), float(cost_bps))
 
 
 @st.cache_data(show_spinner="몬테카를로 시뮬레이션 중…", ttl=60 * 30)
@@ -620,6 +620,31 @@ with st.sidebar:
     )
 
     st.divider()
+    st.markdown("<div class='section-eyebrow'>Risk-free</div>", unsafe_allow_html=True)
+    use_live_rf = st.toggle(
+        "실시간 무위험 수익률 사용 (^IRX)", value=not force_synth,
+        help="Yahoo Finance에서 13주 미국 단기국채 수익률을 가져와 샤프 계산에 반영",
+        key="use_live_rf",
+    )
+    if use_live_rf and not force_synth:
+        rf_rate, rf_source = data.fetch_risk_free_rate()
+    else:
+        rf_rate, rf_source = 0.04, "default"
+    rf_rate = st.slider(
+        "무위험 수익률 (연, %)", 0.0, 10.0, float(round(rf_rate * 100, 2)), step=0.05,
+        help="샤프·최대샤프·롤링 샤프·알파/베타 계산에 사용됩니다",
+    ) / 100.0
+    st.caption(
+        f"출처: {'^IRX (Yahoo Finance)' if rf_source == 'yfinance' else '기본값(수동 조정 권장)'}"
+    )
+
+    st.divider()
+    cost_bps = st.slider(
+        "리밸런싱 거래비용 (bps)", 0, 50, 5, step=1,
+        help="섹션 6 리밸런싱 시뮬레이션에 적용 — 1bp = 0.01%. 매도+매수 양방향에 적용",
+    )
+
+    st.divider()
     st.markdown("<div class='section-eyebrow'>Benchmark</div>", unsafe_allow_html=True)
     st.markdown("### 비교 지수")
     _BENCH_MAP = {
@@ -700,10 +725,10 @@ else:
     bench_tickers_set = set()
 
 returns = analysis.daily_returns(prices)
-summary = analysis.asset_summary(prices)
+summary = analysis.asset_summary(prices, rf=rf_rate)
 corr = analysis.correlation(prices)
 w_array = np.array([norm_w[t] for t in tickers])
-stats = portfolio.portfolio_stats(w_array, prices)
+stats = portfolio.portfolio_stats(w_array, prices, rf=rf_rate)
 
 
 # ---------- Header ----------------------------------------------------------
@@ -891,7 +916,7 @@ with col_metrics:
     )
 
     eq_w = np.full(len(tickers), 1 / len(tickers))
-    eq_stats = portfolio.portfolio_stats(eq_w, prices)
+    eq_stats = portfolio.portfolio_stats(eq_w, prices, rf=rf_rate)
     delta_ret = (stats.annual_return - eq_stats.annual_return) * 100
     delta_vol = (stats.annual_vol - eq_stats.annual_vol) * 100
     st.caption(f"균등 비중 대비 수익률 {delta_ret:+.2f}%p · 변동성 {delta_vol:+.2f}%p")
@@ -972,9 +997,9 @@ st.divider()
 # ---------- SECTION 4: 포트폴리오 구성 추천 --------------------------------
 with st.expander("04 · 포트폴리오 구성 추천 (Efficient Frontier)", expanded=True):
     if len(tickers) >= 2:
-        sims = cached_simulate(prices, n_sims)
-        max_sharpe_opt = portfolio.optimize(prices, "max_sharpe")
-        min_vol_opt = portfolio.optimize(prices, "min_vol")
+        sims = cached_simulate(prices, n_sims, rf_rate)
+        max_sharpe_opt = portfolio.optimize(prices, "max_sharpe", rf=rf_rate)
+        min_vol_opt = portfolio.optimize(prices, "min_vol", rf=rf_rate)
 
         current_point = {"vol": stats.annual_vol, "ret": stats.annual_return, "sharpe": stats.sharpe}
         max_point = {"vol": max_sharpe_opt.annual_vol, "ret": max_sharpe_opt.annual_return, "sharpe": max_sharpe_opt.sharpe}
@@ -1025,7 +1050,7 @@ with st.expander("04 · 포트폴리오 구성 추천 (Efficient Frontier)", exp
 
 # ---------- SECTION 5: 롤링 지표 -------------------------------------------
 with st.expander("05 · 롤링 지표", expanded=False):
-    rolling_df = analysis.rolling_metrics(prices, w_array)
+    rolling_df = analysis.rolling_metrics(prices, w_array, rf=rf_rate)
     st.plotly_chart(charts.rolling_metrics_chart(rolling_df), use_container_width=True)
     st.caption(
         "롤링 변동성: 63영업일(약 3개월) 기준 연환산 · "
@@ -1033,9 +1058,41 @@ with st.expander("05 · 롤링 지표", expanded=False):
     )
 
 
+# ---------- SECTION 5b: 벤치마크 회귀 (Alpha / Beta / IR) -------------------
+if not bench_aligned.empty:
+    with st.expander(f"05b · 벤치마크 회귀 ({bench_ticker})", expanded=False):
+        reg = analysis.regression_stats(prices, w_array, bench_aligned[bench_ticker], rf=rf_rate)
+        if np.isnan(reg["beta"]):
+            st.info("회귀 통계 계산에 필요한 데이터가 부족합니다.")
+        else:
+            alpha_cls = "pos" if reg["alpha"] >= 0 else "neg"
+            ir_cls = "pos" if reg["info_ratio"] >= 0.5 else "warn" if reg["info_ratio"] >= 0 else "neg"
+            st.markdown(
+                f"""<div class='metric-card'>
+                  <div class='metric-row'>
+                    <span title="CAPM 알파 (연환산) — 시장 대비 초과 수익">알파 (연 %)</span>
+                    <span class='{alpha_cls}'>{reg["alpha"]*100:+.2f}%</span></div>
+                  <div class='metric-row'>
+                    <span title="시장 민감도 — 1.0이면 시장과 동일, &gt;1이면 변동성 큼">베타</span>
+                    <span class='neu'>{reg["beta"]:.3f}</span></div>
+                  <div class='metric-row'>
+                    <span title="Information Ratio — 추적오차 단위당 초과 수익">정보 비율</span>
+                    <span class='{ir_cls}'>{reg["info_ratio"]:.3f}</span></div>
+                  <div class='metric-row'>
+                    <span title="결정계수 — 시장으로 설명되는 수익 변동의 비율">R²</span>
+                    <span class='neu'>{reg["r2"]:.3f}</span></div>
+                </div>""",
+                unsafe_allow_html=True,
+            )
+            st.caption(
+                f"기준 지수: **{bench_ticker}** · 무위험금리 {rf_rate*100:.2f}% · "
+                f"표본 {len(bench_aligned):,}일"
+            )
+
+
 # ---------- SECTION 6: 리밸런싱 시뮬레이션 ----------------------------------
 with st.expander("06 · 리밸런싱 시뮬레이션", expanded=False):
-    rb_strategies = cached_rebalance(prices, w_array)
+    rb_strategies = cached_rebalance(prices, w_array, cost_bps)
     rb_left, rb_right = _cols(2, 1)
     with rb_left:
         st.plotly_chart(charts.rebalancing_chart(rb_strategies), use_container_width=True)
@@ -1055,7 +1112,10 @@ with st.expander("06 · 리밸런싱 시뮬레이션", expanded=False):
                 "샤프": round(sharpe_rb, 3),
             })
         st.table(pd.DataFrame(rb_rows).set_index("전략"))
-        st.caption("동일 자산·기간·비중, 리밸런싱 주기만 다르게 비교합니다.")
+        st.caption(
+            f"동일 자산·기간·비중, 리밸런싱 주기만 다르게 비교합니다 · "
+            f"거래비용 {cost_bps}bps 적용"
+        )
 
 
 # ---------- SECTION 7: 미래 가치 시뮬레이션 ---------------------------------
@@ -1100,6 +1160,6 @@ with st.expander("07 · 미래 가치 시뮬레이션", expanded=False):
 st.divider()
 st.caption(
     "© Mean-Variance Portfolio Dashboard · "
-    f"Modern Portfolio Theory (Markowitz, 1952) · 무위험금리 0% 가정 · "
+    f"Modern Portfolio Theory (Markowitz, 1952) · 무위험금리 {rf_rate*100:.2f}% · "
     f"연 환산 {TRADING_DAYS}영업일 기준"
 )

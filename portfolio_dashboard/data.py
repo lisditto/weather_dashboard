@@ -108,3 +108,23 @@ def fetch_prices(
 def normalize(prices: pd.DataFrame) -> pd.DataFrame:
     """Rebase each column so first row = 100."""
     return prices.divide(prices.iloc[0]).multiply(100)
+
+
+def fetch_risk_free_rate(default: float = 0.04) -> tuple[float, str]:
+    """Latest annualised 13-week T-bill yield (^IRX) as a decimal.
+
+    Returns (rate, source). Source is "yfinance" on success, "default" otherwise.
+    ^IRX is quoted in percent, so we divide by 100.
+    """
+    try:
+        import yfinance as yf
+
+        hist = yf.Ticker("^IRX").history(period="5d", auto_adjust=False)
+        if hist is None or hist.empty or "Close" not in hist.columns:
+            raise RuntimeError("empty ^IRX response")
+        last = float(hist["Close"].dropna().iloc[-1])
+        if not (0.0 <= last <= 25.0):
+            raise RuntimeError(f"implausible ^IRX value: {last}")
+        return last / 100.0, "yfinance"
+    except Exception:
+        return default, "default"
