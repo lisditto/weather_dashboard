@@ -66,7 +66,6 @@ def price_line_chart(
 
 def correlation_heatmap(corr: pd.DataFrame) -> go.Figure:
     z = corr.values
-    text = [[f"{v:.2f}" for v in row] for row in z]
     fig = go.Figure(
         go.Heatmap(
             z=z,
@@ -75,19 +74,31 @@ def correlation_heatmap(corr: pd.DataFrame) -> go.Figure:
             zmin=-1.0,
             zmax=1.0,
             colorscale="RdBu_r",
-            text=text,
-            texttemplate="%{text}",
-            textfont=dict(color="white", size=14),
             hovertemplate="%{y} ↔ %{x}<br>상관계수: %{z:.3f}<extra></extra>",
             colorbar=dict(title=dict(text="상관계수", font=dict(color=TEXT)), tickfont=dict(color=TEXT)),
         )
     )
+    # Per-cell annotations with contrasting text: RdBu_r near 0 is light (white),
+    # near ±1 is dark red/blue — so use black text for |val| < 0.5, white otherwise.
+    annotations = []
+    for i, row_label in enumerate(corr.index):
+        for j, col_label in enumerate(corr.columns):
+            val = z[i, j]
+            text_color = "#000000" if abs(val) < 0.5 else "#ffffff"
+            annotations.append(dict(
+                x=col_label, y=row_label,
+                text=f"{val:.2f}",
+                showarrow=False,
+                font=dict(color=text_color, size=14),
+                xref="x", yref="y",
+            ))
     fig.update_layout(
         **_base_layout(
             title="자산 간 상관관계 히트맵",
             height=480,
             xaxis=dict(side="bottom", showgrid=False),
             yaxis=dict(autorange="reversed", showgrid=False),
+            annotations=annotations,
         )
     )
     return fig
