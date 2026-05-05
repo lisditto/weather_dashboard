@@ -1,4 +1,8 @@
-"""Plotly chart builders. Color maps are now passed at call time."""
+"""Plotly chart builders.
+
+All chart functions read colors from the module-level `_C` dict, which is
+updated at render time by calling `set_theme(colors)` in app.py.
+"""
 from __future__ import annotations
 
 import numpy as np
@@ -8,11 +12,25 @@ from plotly.subplots import make_subplots
 
 from .config import COLORS
 
-PLOT_BG = COLORS["card"]
-PAPER_BG = COLORS["card"]
-GRID = COLORS["divider"]
-TEXT = COLORS["text"]
-MUTED = COLORS["muted"]
+# Mutable theme dict — updated by set_theme() before each render
+_C: dict = dict(COLORS)
+
+# Convenience module-level vars — also updated by set_theme()
+PLOT_BG = _C["card"]
+PAPER_BG = _C["card"]
+GRID = _C["divider"]
+TEXT = _C["text"]
+MUTED = _C["muted"]
+
+
+def set_theme(colors: dict) -> None:
+    """Switch the active color palette used by all chart functions."""
+    global _C, PLOT_BG, PAPER_BG, GRID, TEXT, MUTED
+    _C = dict(colors)
+    PLOT_BG = PAPER_BG = _C["card"]
+    GRID = _C["divider"]
+    TEXT = _C["text"]
+    MUTED = _C["muted"]
 
 
 def _base_layout(**overrides) -> dict:
@@ -24,7 +42,7 @@ def _base_layout(**overrides) -> dict:
         xaxis=dict(gridcolor=GRID, zerolinecolor=GRID),
         yaxis=dict(gridcolor=GRID, zerolinecolor=GRID),
         legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor=GRID, borderwidth=1),
-        hoverlabel=dict(bgcolor=COLORS["bg"], bordercolor=GRID, font=dict(color=TEXT)),
+        hoverlabel=dict(bgcolor=_C["bg"], bordercolor=GRID, font=dict(color=TEXT)),
     )
     base.update(overrides)
     return base
@@ -38,7 +56,7 @@ def price_line_chart(
 ) -> go.Figure:
     """Normalized price line chart (first day = 100).
 
-    Tickers listed in *benchmark_tickers* are rendered as grey dashed lines.
+    Tickers listed in *benchmark_tickers* are rendered as dashed lines.
     """
     benchmark_tickers = benchmark_tickers or set()
     fig = go.Figure()
@@ -74,7 +92,7 @@ def price_line_chart(
         **_base_layout(
             title="자산 가격 추이 (정규화, 시작일=100)",
             height=420,
-            xaxis=dict(gridcolor=GRID, rangeslider=dict(visible=True, bgcolor=COLORS["bg"])),
+            xaxis=dict(gridcolor=GRID, rangeslider=dict(visible=True, bgcolor=_C["bg"])),
             yaxis=dict(gridcolor=GRID, title="정규화 가격"),
             legend=dict(orientation="h", x=1, y=1.08, xanchor="right", bgcolor="rgba(0,0,0,0)"),
         )
@@ -96,8 +114,6 @@ def correlation_heatmap(corr: pd.DataFrame) -> go.Figure:
             colorbar=dict(title=dict(text="상관계수", font=dict(color=TEXT)), tickfont=dict(color=TEXT)),
         )
     )
-    # Per-cell annotations with contrasting text: RdBu_r near 0 is light (white),
-    # near ±1 is dark red/blue — so use black text for |val| < 0.5, white otherwise.
     annotations = []
     for i, row_label in enumerate(corr.index):
         for j, col_label in enumerate(corr.columns):
@@ -164,11 +180,11 @@ def efficient_frontier_scatter(
         )
 
     if max_sharpe:
-        _marker(max_sharpe, COLORS["optimal"], "최대 샤프", "star")
+        _marker(max_sharpe, _C["optimal"], "최대 샤프", "star")
     if min_vol:
-        _marker(min_vol, COLORS["min_vol_marker"], "최소 변동성", "diamond")
+        _marker(min_vol, _C["min_vol_marker"], "최소 변동성", "diamond")
     if current:
-        _marker(current, COLORS["current_marker"], "현재 포트폴리오", "circle")
+        _marker(current, _C["current_marker"], "현재 포트폴리오", "circle")
 
     fig.update_layout(
         **_base_layout(
@@ -197,9 +213,9 @@ def weights_donut(
             labels=labels,
             values=values,
             hole=0.62,
-            marker=dict(colors=colors, line=dict(color=COLORS["bg"], width=2)),
+            marker=dict(colors=colors, line=dict(color=_C["bg"], width=2)),
             textinfo="label+percent",
-            textfont=dict(color="white", size=13),
+            textfont=dict(color=TEXT, size=13),
             hovertemplate="<b>%{label}</b><br>비중: %{value:.2f}%<extra></extra>",
             sort=False,
             direction="clockwise",
@@ -225,7 +241,7 @@ def drawdown_chart(prices: pd.Series, ticker: str) -> go.Figure:
     fig = go.Figure(
         go.Scatter(
             x=dd.index, y=dd.values, mode="lines",
-            line=dict(color=COLORS["negative"], width=1.5),
+            line=dict(color=_C["negative"], width=1.5),
             fill="tozeroy", fillcolor="rgba(198,40,40,0.25)",
             name=f"{ticker} MDD",
             hovertemplate="%{x|%Y-%m-%d}<br>낙폭: %{y:.2f}%<extra></extra>",
@@ -256,26 +272,25 @@ def rolling_metrics_chart(rolling_df: pd.DataFrame) -> go.Figure:
 
     fig.add_trace(go.Scatter(
         x=vol.index, y=vol.values, mode="lines",
-        line=dict(color=COLORS["primary"], width=1.5), name="변동성",
+        line=dict(color=_C["primary"], width=1.5), name="변동성",
         hovertemplate="%{x|%Y-%m-%d}<br>변동성: %{y:.2f}%<extra></extra>",
     ), row=1, col=1)
 
     fig.add_trace(go.Scatter(
         x=sharpe.index, y=sharpe.values, mode="lines",
-        line=dict(color=COLORS["positive"], width=1.5), name="샤프",
+        line=dict(color=_C["positive"], width=1.5), name="샤프",
         hovertemplate="%{x|%Y-%m-%d}<br>샤프: %{y:.3f}<extra></extra>",
     ), row=2, col=1)
 
-    # Reference lines for Sharpe
-    fig.add_hline(y=0, row=2, col=1, line=dict(color=COLORS["neutral"], width=1, dash="dot"))
-    fig.add_hline(y=1, row=2, col=1, line=dict(color=COLORS["positive"], width=1, dash="dot"))
+    fig.add_hline(y=0, row=2, col=1, line=dict(color=_C["neutral"], width=1, dash="dot"))
+    fig.add_hline(y=1, row=2, col=1, line=dict(color=_C["positive"], width=1, dash="dot"))
 
     fig.update_layout(
         paper_bgcolor=PAPER_BG, plot_bgcolor=PLOT_BG,
         font=dict(color=TEXT, family="Inter, -apple-system, Segoe UI, sans-serif"),
         margin=dict(l=40, r=20, t=60, b=40),
         height=440, showlegend=False,
-        hoverlabel=dict(bgcolor=COLORS["bg"], bordercolor=GRID, font=dict(color=TEXT)),
+        hoverlabel=dict(bgcolor=_C["bg"], bordercolor=GRID, font=dict(color=TEXT)),
     )
     fig.update_yaxes(gridcolor=GRID, ticksuffix="%", row=1, col=1)
     fig.update_yaxes(gridcolor=GRID, row=2, col=1)
@@ -287,7 +302,7 @@ def rolling_metrics_chart(rolling_df: pd.DataFrame) -> go.Figure:
 
 def rebalancing_chart(strategies: dict[str, pd.Series]) -> go.Figure:
     """Cumulative return fan for buy-and-hold vs rebalancing strategies."""
-    palette = [COLORS["stone"], COLORS["primary"], COLORS["positive"], COLORS["warning"]]
+    palette = [_C["stone"], _C["primary"], _C["positive"], _C["warning"]]
     widths = [2, 2.5, 2, 2]
     fig = go.Figure()
     for (name, series), color, width in zip(strategies.items(), palette, widths):
@@ -311,39 +326,35 @@ def forward_mc_chart(pct_df: pd.DataFrame, initial: float) -> go.Figure:
     idx = list(pct_df.index)
     fig = go.Figure()
 
-    # Outer shaded band: 5–95 %
     fig.add_trace(go.Scatter(
         x=idx + idx[::-1],
         y=list(pct_df["p95"]) + list(pct_df["p5"])[::-1],
         fill="toself", fillcolor="rgba(73,79,223,0.10)",
         line=dict(color="rgba(0,0,0,0)"), name="5–95%", hoverinfo="skip",
     ))
-    # Inner shaded band: 25–75 %
     fig.add_trace(go.Scatter(
         x=idx + idx[::-1],
         y=list(pct_df["p75"]) + list(pct_df["p25"])[::-1],
         fill="toself", fillcolor="rgba(73,79,223,0.22)",
         line=dict(color="rgba(0,0,0,0)"), name="25–75%", hoverinfo="skip",
     ))
-    # Boundary lines
     for col, color, name, dash in [
-        ("p95", COLORS["positive"], "최선 (95%)", "dot"),
-        ("p5",  COLORS["negative"], "최악 (5%)",  "dot"),
+        ("p95", _C["positive"], "최선 (95%)", "dot"),
+        ("p5",  _C["negative"], "최악 (5%)",  "dot"),
     ]:
         fig.add_trace(go.Scatter(
             x=idx, y=pct_df[col].values, mode="lines",
             line=dict(color=color, width=1.2, dash=dash), name=name,
             hovertemplate=f"<b>{name}</b><br>%{{x|%Y-%m-%d}}<br>%{{y:,.0f}}원<extra></extra>",
         ))
-    # Median
     fig.add_trace(go.Scatter(
         x=idx, y=pct_df["p50"].values, mode="lines",
-        line=dict(color=COLORS["primary"], width=2.5), name="중앙값 (50%)",
+        line=dict(color=_C["primary"], width=2.5), name="중앙값 (50%)",
         hovertemplate="<b>중앙값</b><br>%{x|%Y-%m-%d}<br>%{y:,.0f}원<extra></extra>",
     ))
     fig.add_hline(
-        y=initial, line=dict(color=COLORS["stone"], dash="dash", width=1),
-        annotation_text="초기 투자금", annotation_font_color=COLORS["stone"],
+        y=initial, line=dict(color=_C["stone"], dash="dash", width=1),
+        annotation_text="초기 투자금", annotation_font_color=_C["stone"],
     )
     fig.update_layout(**_base_layout(
         title="포트폴리오 미래 가치 시뮬레이션 (GBM · 500회)",

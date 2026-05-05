@@ -57,6 +57,31 @@ COLORS = {
     "current_marker": "#e61e49",
 }
 
+COLORS_DARK = COLORS  # backward-compat alias used by charts.set_theme
+
+# Revolut light palette — same brand accent, light canvas
+COLORS_LIGHT: dict = {
+    "bg": "#f5f5f7",
+    "card": "#ffffff",
+    "card_deep": "#ebebed",
+    "divider": "rgba(0,0,0,0.10)",
+    "divider_soft": "rgba(0,0,0,0.05)",
+    "text": "#0a0a0a",
+    "muted": "rgba(0,0,0,0.55)",
+    "stone": "#6b7280",
+    "faint": "#374151",
+    "primary": "#494fdf",
+    "primary_bright": "#4f55f1",
+    "primary_deep": "#3a40c4",
+    "positive": "#007a5c",
+    "negative": "#c0392b",
+    "warning": "#b85c00",
+    "neutral": "#6b7280",
+    "optimal": "#494fdf",
+    "min_vol_marker": "#000000",
+    "current_marker": "#c0392b",
+}
+
 TRADING_DAYS = 252
 RISK_FREE_RATE = 0.0
 DEFAULT_PERIOD_YEARS = 5
