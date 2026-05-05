@@ -717,8 +717,16 @@ if _url_p:
 bench_prices_raw = load_benchmark(bench_ticker, start_date, end_date, force_synth)
 if bench_ticker and not bench_prices_raw.empty and bench_ticker in bench_prices_raw.columns:
     bench_aligned = bench_prices_raw[[bench_ticker]].reindex(prices.index).ffill().dropna()
-    bench_color_map = {bench_ticker: COLORS["stone"]}
-    bench_tickers_set: set[str] = {bench_ticker}
+    # If benchmark is already a portfolio holding, use a disambiguated display name
+    # so concat doesn't produce duplicate columns in charts.
+    if bench_ticker in prices.columns:
+        _bench_display = bench_ticker + " (지수)"
+        bench_aligned = bench_aligned.rename(columns={bench_ticker: _bench_display})
+        bench_tickers_set: set[str] = {_bench_display}
+        bench_color_map = {_bench_display: COLORS["stone"]}
+    else:
+        bench_tickers_set = {bench_ticker}
+        bench_color_map = {bench_ticker: COLORS["stone"]}
 else:
     bench_aligned = pd.DataFrame()
     bench_color_map = {}
@@ -1061,7 +1069,7 @@ with st.expander("05 · 롤링 지표", expanded=False):
 # ---------- SECTION 5b: 벤치마크 회귀 (Alpha / Beta / IR) -------------------
 if not bench_aligned.empty:
     with st.expander(f"05b · 벤치마크 회귀 ({bench_ticker})", expanded=False):
-        reg = analysis.regression_stats(prices, w_array, bench_aligned[bench_ticker], rf=rf_rate)
+        reg = analysis.regression_stats(prices, w_array, bench_aligned.iloc[:, 0], rf=rf_rate)
         if np.isnan(reg["beta"]):
             st.info("회귀 통계 계산에 필요한 데이터가 부족합니다.")
         else:
