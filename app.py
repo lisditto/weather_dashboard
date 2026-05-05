@@ -33,8 +33,6 @@ st.set_page_config(
 
 
 # ---------- Custom CSS — Revolut design language ----------------------------
-# NOTE: CSS must NOT be indented. Streamlit's markdown renders 4-space-indented
-# blocks as code blocks, which prints raw CSS as text on the page.
 _CSS = textwrap.dedent(f"""
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -181,7 +179,9 @@ hr {{ border-color: {COLORS['divider']} !important; margin: 32px 0 !important; }
 }}
 </style>
 """).strip()
-st.markdown(_CSS, unsafe_allow_html=True)
+# st.html() injects raw HTML directly without going through markdown parsing.
+# This guarantees the <style> block is never mistaken for a code block.
+st.html(_CSS)
 
 
 # ---------- Sidebar: period & data source ----------------------------------
