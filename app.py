@@ -285,6 +285,27 @@ with st.sidebar:
     )
     n_sims = st.slider("EF 시뮬레이션 수", 1000, 20000, EF_SIMULATIONS, step=1000)
 
+    st.divider()
+    st.markdown("### 📊 벤치마크 비교")
+    _BENCH_MAP = {
+        "없음": "",
+        "SPY (S&P 500)": "SPY",
+        "QQQ (나스닥100)": "QQQ",
+        "BND (미국 채권)": "BND",
+        "GLD (금)": "GLD",
+        "^KS11 (코스피)": "^KS11",
+    }
+    bench_label = st.selectbox("기준 지수", list(_BENCH_MAP.keys()), key="bench_sel")
+    bench_ticker = _BENCH_MAP[bench_label]
+
+    st.divider()
+    st.markdown("### 🔮 미래 시뮬레이션")
+    initial_inv = st.number_input(
+        "초기 투자금 (원)", min_value=1_000_000, max_value=10_000_000_000,
+        value=10_000_000, step=1_000_000, format="%d",
+    )
+    mc_years = st.slider("시뮬레이션 기간 (년)", 1, 30, 10)
+
 
 # ---------- Resolve user portfolio ------------------------------------------
 valid_assets = [a for a in st.session_state.portfolio if a["ticker"]]
@@ -303,6 +324,14 @@ def load_prices(tickers_tuple: tuple, start: dt.date, end: dt.date, force_synth:
 
 
 prices, source, missing = load_prices(tuple(tickers), start_date, end_date, force_synth)
+
+
+@st.cache_data(show_spinner="벤치마크 데이터 로드 중…", ttl=60 * 30)
+def load_benchmark(ticker: str, start: dt.date, end: dt.date, force_synth: bool) -> pd.DataFrame:
+    if not ticker:
+        return pd.DataFrame()
+    df, _, _ = data.fetch_prices([ticker], start, end, force_synthetic=force_synth)
+    return df
 
 available_tickers = list(prices.columns) if not prices.empty else []
 tickers = [t for t in tickers if t in available_tickers]
@@ -323,6 +352,17 @@ else:
 
 # Color map by user's input order
 color_map = {t: color_for(i) for i, t in enumerate(tickers)}
+
+# Benchmark (optional)
+bench_prices_raw = load_benchmark(bench_ticker, start_date, end_date, force_synth)
+if bench_ticker and not bench_prices_raw.empty and bench_ticker in bench_prices_raw.columns:
+    bench_aligned = bench_prices_raw[[bench_ticker]].reindex(prices.index).ffill().dropna()
+    bench_color_map = {bench_ticker: COLORS["stone"]}
+    bench_tickers_set: set[str] = {bench_ticker}
+else:
+    bench_aligned = pd.DataFrame()
+    bench_color_map = {}
+    bench_tickers_set = set()
 
 returns = analysis.daily_returns(prices)
 summary = analysis.asset_summary(prices)
@@ -391,8 +431,18 @@ with sec1:
             )
 
     st.markdown("&nbsp;", unsafe_allow_html=True)
+    # Merge benchmark into display data if selected
+    if not bench_aligned.empty:
+        disp_prices = pd.concat([prices, bench_aligned], axis=1).dropna()
+        disp_norm = data.normalize(disp_prices)
+        disp_returns = analysis.daily_returns(disp_prices)
+        disp_color_map = {**color_map, **bench_color_map}
+    else:
+        disp_norm = data.normalize(prices)
+        disp_returns = returns
+        disp_color_map = color_map
     st.plotly_chart(
-        charts.price_line_chart(data.normalize(prices), returns, color_map),
+        charts.price_line_chart(disp_norm, disp_returns, disp_color_map, benchmark_tickers=bench_tickers_set),
         use_container_width=True,
     )
 
@@ -458,6 +508,9 @@ with col_metrics:
     vol_pct = stats.annual_vol * 100
     cls = "pos" if ret_pct >= 0 else "neg"
     sharpe_cls = "pos" if stats.sharpe >= 1 else "warn" if stats.sharpe >= 0.5 else "neg"
+
+    var95, cvar95 = analysis.var_cvar(prices, w_array)
+
     st.markdown(
         f"""
         <div class='metric-card'>
@@ -467,6 +520,8 @@ with col_metrics:
           <div class='metric-row'><span>샤프 평가</span>
             <span>{ '🟢 우수' if stats.sharpe >= 1 else '🟠 보통' if stats.sharpe >= 0.5 else '🔴 낮음' }</span>
           </div>
+          <div class='metric-row'><span>VaR 95% (일)</span><span class='neg'>-{var95*100:.2f}%</span></div>
+          <div class='metric-row'><span>CVaR 95% (일)</span><span class='neg'>-{cvar95*100:.2f}%</span></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -477,6 +532,31 @@ with col_metrics:
     delta_ret = (stats.annual_return - eq_stats.annual_return) * 100
     delta_vol = (stats.annual_vol - eq_stats.annual_vol) * 100
     st.caption(f"균등 비중 대비 수익률 {delta_ret:+.2f}%p · 변동성 {delta_vol:+.2f}%p")
+
+    # CSV export
+    export_rows = []
+    for t in tickers:
+        row = summary.loc[t]
+        export_rows.append({
+            "자산": t, "비중(%)": round(norm_w[t] * 100, 2),
+            "연수익률(%)": round(row["annual_return"] * 100, 2),
+            "연변동성(%)": round(row["annual_vol"] * 100, 2),
+            "샤프지수": round(row["sharpe"], 3),
+            "MDD(%)": round(row["mdd"] * 100, 2),
+        })
+    export_rows.append({
+        "자산": "【포트폴리오】", "비중(%)": 100.0,
+        "연수익률(%)": round(ret_pct, 2),
+        "연변동성(%)": round(vol_pct, 2),
+        "샤프지수": round(stats.sharpe, 3),
+        "MDD(%)": "",
+    })
+    csv_bytes = pd.DataFrame(export_rows).to_csv(index=False).encode("utf-8-sig")
+    st.download_button(
+        "📥 분석 결과 CSV 다운로드", csv_bytes,
+        file_name="portfolio_analysis.csv", mime="text/csv",
+        use_container_width=True,
+    )
 
 st.divider()
 
@@ -544,6 +624,113 @@ if len(tickers) >= 2:
             st.rerun()
 else:
     st.info("Efficient Frontier 분석은 자산 2개 이상에서 가능합니다.")
+
+st.divider()
+
+
+# ---------- SECTION 5: 롤링 지표 -------------------------------------------
+st.subheader("5️⃣ 롤링 지표")
+
+rolling_df = analysis.rolling_metrics(prices, w_array)
+st.plotly_chart(charts.rolling_metrics_chart(rolling_df), use_container_width=True)
+st.caption(
+    "롤링 변동성: 63영업일(약 3개월) 기준 연환산 · "
+    "롤링 샤프: 252영업일(1년) 기준 · 점선 = 0 및 샤프 1.0 기준선"
+)
+
+st.divider()
+
+
+# ---------- SECTION 6: 리밸런싱 시뮬레이션 ----------------------------------
+st.subheader("6️⃣ 리밸런싱 시뮬레이션")
+
+
+@st.cache_data(show_spinner="리밸런싱 시뮬레이션 중…", ttl=60 * 30)
+def cached_rebalance(prices_csv: str, weights_str: str) -> dict[str, list]:
+    df = pd.read_csv(io.StringIO(prices_csv), index_col=0, parse_dates=True)
+    w = np.array([float(x) for x in weights_str.split(",")])
+    raw = analysis.rebalance_backtest(df, w)
+    # Serialise as plain lists for Streamlit cache compatibility
+    return {k: (list(v.index.astype(str)), list(v.values)) for k, v in raw.items()}
+
+
+rb_raw = cached_rebalance(prices.to_csv(), ",".join(str(x) for x in w_array))
+rb_strategies = {
+    k: pd.Series(vals, index=pd.to_datetime(dates))
+    for k, (dates, vals) in rb_raw.items()
+}
+
+rb_left, rb_right = st.columns([2, 1])
+with rb_left:
+    st.plotly_chart(charts.rebalancing_chart(rb_strategies), use_container_width=True)
+with rb_right:
+    st.markdown("##### 전략별 결과 요약")
+    rb_rows = []
+    for name, series in rb_strategies.items():
+        total_ret = (series.iloc[-1] - 1) * 100
+        d_rets = series.pct_change().dropna()
+        ann_vol_rb = d_rets.std() * np.sqrt(TRADING_DAYS) * 100
+        ann_ret_rb = d_rets.mean() * TRADING_DAYS * 100
+        sharpe_rb = ann_ret_rb / ann_vol_rb if ann_vol_rb > 0 else 0
+        rb_rows.append({
+            "전략": name,
+            "누적 수익률 (%)": round(total_ret, 2),
+            "연 변동성 (%)": round(ann_vol_rb, 2),
+            "샤프": round(sharpe_rb, 3),
+        })
+    st.dataframe(pd.DataFrame(rb_rows), hide_index=True, use_container_width=True)
+    st.caption("동일 자산·기간·비중 기준으로 리밸런싱 주기만 다르게 비교합니다.")
+
+st.divider()
+
+
+# ---------- SECTION 7: 미래 가치 시뮬레이션 ---------------------------------
+st.subheader("7️⃣ 미래 가치 시뮬레이션")
+
+
+@st.cache_data(show_spinner="몬테카를로 시뮬레이션 중…", ttl=60 * 30)
+def cached_forward_mc(prices_csv: str, weights_str: str, years: int, initial: float) -> pd.DataFrame:
+    df = pd.read_csv(io.StringIO(prices_csv), index_col=0, parse_dates=True)
+    w = np.array([float(x) for x in weights_str.split(",")])
+    return portfolio.forward_monte_carlo(df, w, years=years, n_sims=500, initial=initial)
+
+
+mc_df = cached_forward_mc(
+    prices.to_csv(), ",".join(str(x) for x in w_array),
+    mc_years, float(initial_inv),
+)
+
+mc_left, mc_right = st.columns([2, 1])
+with mc_left:
+    st.plotly_chart(charts.forward_mc_chart(mc_df, float(initial_inv)), use_container_width=True)
+with mc_right:
+    final = mc_df.iloc[-1]
+    st.markdown("##### 시뮬레이션 결과 요약")
+    ret_med = (final["p50"] / initial_inv - 1) * 100
+    ret_cls = "pos" if ret_med >= 0 else "neg"
+    st.markdown(
+        f"""
+        <div class='metric-card'>
+          <div class='metric-row'><span>초기 투자금</span>
+            <span class='neu'>{initial_inv:,.0f}원</span></div>
+          <div class='metric-row'><span>최악 시나리오 (5%)</span>
+            <span class='neg'>{final["p5"]:,.0f}원</span></div>
+          <div class='metric-row'><span>하위 25%</span>
+            <span class='warn'>{final["p25"]:,.0f}원</span></div>
+          <div class='metric-row'><span>중앙값 (50%)</span>
+            <span class='{ret_cls}'>{final["p50"]:,.0f}원</span></div>
+          <div class='metric-row'><span>상위 25%</span>
+            <span class='pos'>{final["p75"]:,.0f}원</span></div>
+          <div class='metric-row'><span>최선 시나리오 (95%)</span>
+            <span class='pos'>{final["p95"]:,.0f}원</span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        f"{mc_years}년 후 기대 수익률 (중앙값): **{ret_med:+.1f}%**  \n"
+        "과거 수익률·변동성 기반 GBM 시뮬레이션 · 미래 보장 아님"
+    )
 
 st.divider()
 st.caption(

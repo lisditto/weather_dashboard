@@ -78,3 +78,36 @@ def optimize(prices: pd.DataFrame, objective: str) -> PortfolioStats:
 
     res = minimize(fn, x0, method="SLSQP", bounds=bounds, constraints=constraints)
     return _stats(res.x, mu, cov)
+
+
+def forward_monte_carlo(
+    prices: pd.DataFrame,
+    weights: np.ndarray,
+    years: int = 10,
+    n_sims: int = 500,
+    initial: float = 10_000_000,
+    seed: int = 42,
+) -> pd.DataFrame:
+    """GBM forward simulation using historical portfolio drift/vol.
+
+    Returns a DataFrame (index = future business dates, columns = p5/p25/p50/p75/p95)
+    so callers can draw a fan chart without storing all n_sims paths.
+    """
+    from .analysis import portfolio_daily_returns
+
+    port_ret = portfolio_daily_returns(prices, weights)
+    mu = float(port_ret.mean())
+    sigma = float(port_ret.std())
+    n_days = int(years * TRADING_DAYS)
+
+    rng = np.random.default_rng(seed)
+    rand_rets = rng.normal(mu, sigma, (n_sims, n_days))
+    # Cumulative product → each row is one simulated path
+    cum = np.cumprod(1 + rand_rets, axis=1) * initial
+    cum = np.hstack([np.full((n_sims, 1), initial), cum])  # prepend t=0
+
+    pcts = [5, 25, 50, 75, 95]
+    pct_data = np.percentile(cum, pcts, axis=0).T  # shape (n_days+1, 5)
+
+    future_idx = pd.bdate_range(start=prices.index[-1], periods=n_days + 1)
+    return pd.DataFrame(pct_data, index=future_idx, columns=[f"p{p}" for p in pcts])

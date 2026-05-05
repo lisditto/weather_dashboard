@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from .config import COLORS
 
@@ -30,22 +31,39 @@ def _base_layout(**overrides) -> dict:
 
 
 def price_line_chart(
-    normalized: pd.DataFrame, returns: pd.DataFrame, color_map: dict[str, str]
+    normalized: pd.DataFrame,
+    returns: pd.DataFrame,
+    color_map: dict[str, str],
+    benchmark_tickers: set[str] | None = None,
 ) -> go.Figure:
-    """Normalized price line chart (first day = 100)."""
+    """Normalized price line chart (first day = 100).
+
+    Tickers listed in *benchmark_tickers* are rendered as grey dashed lines.
+    """
+    benchmark_tickers = benchmark_tickers or set()
     fig = go.Figure()
     for ticker in normalized.columns:
-        ret = returns[ticker].reindex(normalized.index).fillna(0) * 100
+        is_bench = ticker in benchmark_tickers
+        ret = (
+            returns[ticker].reindex(normalized.index).fillna(0) * 100
+            if ticker in returns.columns
+            else pd.Series(0.0, index=normalized.index)
+        )
         fig.add_trace(
             go.Scatter(
                 x=normalized.index,
                 y=normalized[ticker],
-                name=ticker,
+                name=ticker + (" (벤치마크)" if is_bench else ""),
                 mode="lines",
-                line=dict(color=color_map.get(ticker, "#888"), width=2),
+                line=dict(
+                    color=color_map.get(ticker, "#888"),
+                    width=1.5 if is_bench else 2,
+                    dash="dash" if is_bench else "solid",
+                ),
+                opacity=0.65 if is_bench else 1.0,
                 customdata=np.stack([ret.values], axis=-1),
                 hovertemplate=(
-                    f"<b>{ticker}</b><br>"
+                    f"<b>{ticker}</b>{'&nbsp;(벤치마크)' if is_bench else ''}<br>"
                     "%{x|%Y-%m-%d}<br>"
                     "정규화: %{y:.2f}<br>"
                     "당일 수익률: %{customdata[0]:+.2f}%<extra></extra>"
@@ -220,4 +238,117 @@ def drawdown_chart(prices: pd.Series, ticker: str) -> go.Figure:
             yaxis=dict(gridcolor=GRID, title="낙폭 %", ticksuffix="%"),
         )
     )
+    return fig
+
+
+# ── New charts ────────────────────────────────────────────────────────────────
+
+def rolling_metrics_chart(rolling_df: pd.DataFrame) -> go.Figure:
+    """Two-panel chart: rolling volatility (63d) and rolling Sharpe (252d)."""
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True,
+        subplot_titles=["롤링 변동성 (63일 기준, 연환산 %)", "롤링 샤프 지수 (252일 기준)"],
+        vertical_spacing=0.12,
+    )
+
+    vol = rolling_df["rolling_vol"].dropna() * 100
+    sharpe = rolling_df["rolling_sharpe"].dropna()
+
+    fig.add_trace(go.Scatter(
+        x=vol.index, y=vol.values, mode="lines",
+        line=dict(color=COLORS["primary"], width=1.5), name="변동성",
+        hovertemplate="%{x|%Y-%m-%d}<br>변동성: %{y:.2f}%<extra></extra>",
+    ), row=1, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=sharpe.index, y=sharpe.values, mode="lines",
+        line=dict(color=COLORS["positive"], width=1.5), name="샤프",
+        hovertemplate="%{x|%Y-%m-%d}<br>샤프: %{y:.3f}<extra></extra>",
+    ), row=2, col=1)
+
+    # Reference lines for Sharpe
+    fig.add_hline(y=0, row=2, col=1, line=dict(color=COLORS["neutral"], width=1, dash="dot"))
+    fig.add_hline(y=1, row=2, col=1, line=dict(color=COLORS["positive"], width=1, dash="dot"))
+
+    fig.update_layout(
+        paper_bgcolor=PAPER_BG, plot_bgcolor=PLOT_BG,
+        font=dict(color=TEXT, family="Inter, -apple-system, Segoe UI, sans-serif"),
+        margin=dict(l=40, r=20, t=60, b=40),
+        height=440, showlegend=False,
+        hoverlabel=dict(bgcolor=COLORS["bg"], bordercolor=GRID, font=dict(color=TEXT)),
+    )
+    fig.update_yaxes(gridcolor=GRID, ticksuffix="%", row=1, col=1)
+    fig.update_yaxes(gridcolor=GRID, row=2, col=1)
+    fig.update_xaxes(gridcolor=GRID)
+    for ann in fig.layout.annotations:
+        ann.update(font=dict(color=MUTED, size=12))
+    return fig
+
+
+def rebalancing_chart(strategies: dict[str, pd.Series]) -> go.Figure:
+    """Cumulative return fan for buy-and-hold vs rebalancing strategies."""
+    palette = [COLORS["stone"], COLORS["primary"], COLORS["positive"], COLORS["warning"]]
+    widths = [2, 2.5, 2, 2]
+    fig = go.Figure()
+    for (name, series), color, width in zip(strategies.items(), palette, widths):
+        cum_ret = (series - 1) * 100
+        fig.add_trace(go.Scatter(
+            x=series.index, y=cum_ret.values, mode="lines",
+            name=name, line=dict(color=color, width=width),
+            hovertemplate=f"<b>{name}</b><br>%{{x|%Y-%m-%d}}<br>누적 수익률: %{{y:+.2f}}%<extra></extra>",
+        ))
+    fig.update_layout(**_base_layout(
+        title="리밸런싱 전략별 누적 수익률",
+        height=420,
+        yaxis=dict(gridcolor=GRID, title="누적 수익률 %", ticksuffix="%"),
+        legend=dict(orientation="h", x=0, y=1.1, bgcolor="rgba(0,0,0,0)"),
+    ))
+    return fig
+
+
+def forward_mc_chart(pct_df: pd.DataFrame, initial: float) -> go.Figure:
+    """Fan chart for GBM forward Monte Carlo simulation."""
+    idx = list(pct_df.index)
+    fig = go.Figure()
+
+    # Outer shaded band: 5–95 %
+    fig.add_trace(go.Scatter(
+        x=idx + idx[::-1],
+        y=list(pct_df["p95"]) + list(pct_df["p5"])[::-1],
+        fill="toself", fillcolor="rgba(73,79,223,0.10)",
+        line=dict(color="rgba(0,0,0,0)"), name="5–95%", hoverinfo="skip",
+    ))
+    # Inner shaded band: 25–75 %
+    fig.add_trace(go.Scatter(
+        x=idx + idx[::-1],
+        y=list(pct_df["p75"]) + list(pct_df["p25"])[::-1],
+        fill="toself", fillcolor="rgba(73,79,223,0.22)",
+        line=dict(color="rgba(0,0,0,0)"), name="25–75%", hoverinfo="skip",
+    ))
+    # Boundary lines
+    for col, color, name, dash in [
+        ("p95", COLORS["positive"], "최선 (95%)", "dot"),
+        ("p5",  COLORS["negative"], "최악 (5%)",  "dot"),
+    ]:
+        fig.add_trace(go.Scatter(
+            x=idx, y=pct_df[col].values, mode="lines",
+            line=dict(color=color, width=1.2, dash=dash), name=name,
+            hovertemplate=f"<b>{name}</b><br>%{{x|%Y-%m-%d}}<br>%{{y:,.0f}}원<extra></extra>",
+        ))
+    # Median
+    fig.add_trace(go.Scatter(
+        x=idx, y=pct_df["p50"].values, mode="lines",
+        line=dict(color=COLORS["primary"], width=2.5), name="중앙값 (50%)",
+        hovertemplate="<b>중앙값</b><br>%{x|%Y-%m-%d}<br>%{y:,.0f}원<extra></extra>",
+    ))
+    fig.add_hline(
+        y=initial, line=dict(color=COLORS["stone"], dash="dash", width=1),
+        annotation_text="초기 투자금", annotation_font_color=COLORS["stone"],
+    )
+    fig.update_layout(**_base_layout(
+        title="포트폴리오 미래 가치 시뮬레이션 (GBM · 500회)",
+        height=460,
+        yaxis=dict(gridcolor=GRID, title="포트폴리오 가치 (원)", tickformat=",.0f"),
+        legend=dict(orientation="h", x=0, y=1.1, bgcolor="rgba(0,0,0,0)"),
+    ))
     return fig
