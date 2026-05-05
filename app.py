@@ -717,7 +717,7 @@ if _url_p:
 bench_prices_raw = load_benchmark(bench_ticker, start_date, end_date, force_synth)
 if bench_ticker and not bench_prices_raw.empty and bench_ticker in bench_prices_raw.columns:
     bench_aligned = bench_prices_raw[[bench_ticker]].reindex(prices.index).ffill().dropna()
-    bench_color_map = {bench_ticker: C["stone"]}
+    bench_color_map = {bench_ticker: COLORS["stone"]}
     bench_tickers_set: set[str] = {bench_ticker}
 else:
     bench_aligned = pd.DataFrame()
