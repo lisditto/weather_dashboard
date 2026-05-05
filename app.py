@@ -16,6 +16,8 @@ from portfolio_dashboard.config import (
     ASSETS,
     COLORS,
     DEFAULT_PERIOD_YEARS,
+    EARLIEST_COMMON_DATE,
+    EARLIEST_PICKABLE,
     EF_SIMULATIONS,
     TICKERS,
     TRADING_DAYS,
@@ -69,31 +71,64 @@ st.markdown(
 with st.sidebar:
     st.markdown("### ⚙️ 분석 설정")
     today = dt.date.today()
-    default_start = today - dt.timedelta(days=365 * DEFAULT_PERIOD_YEARS)
+    earliest_common = dt.date.fromisoformat(EARLIEST_COMMON_DATE)
+    earliest_pickable = dt.date.fromisoformat(EARLIEST_PICKABLE)
 
-    start_date, end_date = st.date_input(
-        "분석 기간",
-        value=(default_start, today),
-        min_value=dt.date(2005, 1, 1),
+    if "period_start" not in st.session_state:
+        st.session_state.period_start = today - dt.timedelta(days=365 * DEFAULT_PERIOD_YEARS)
+    if "period_end" not in st.session_state:
+        st.session_state.period_end = today
+
+    st.markdown("##### 기간 프리셋")
+    p1, p2, p3 = st.columns(3)
+    p4, p5, p6 = st.columns(3)
+    presets = [
+        (p1, "1년", 1), (p2, "3년", 3), (p3, "5년", 5),
+        (p4, "10년", 10), (p5, "20년", 20),
+    ]
+    for col, label, years in presets:
+        if col.button(label, use_container_width=True, key=f"preset_{years}"):
+            st.session_state.period_start = today - dt.timedelta(days=365 * years)
+            st.session_state.period_end = today
+            st.rerun()
+    if p6.button("MAX", use_container_width=True, key="preset_max",
+                 help=f"공통 가용 최대 기간 (~{(today - earliest_common).days // 365}년)"):
+        st.session_state.period_start = earliest_common
+        st.session_state.period_end = today
+        st.rerun()
+
+    date_range = st.date_input(
+        "분석 기간 (직접 선택)",
+        value=(st.session_state.period_start, st.session_state.period_end),
+        min_value=earliest_pickable,
         max_value=today,
     )
-    if isinstance(start_date, tuple):
-        start_date, end_date = start_date
+    if isinstance(date_range, tuple) and len(date_range) == 2:
+        start_date, end_date = date_range
+    else:
+        start_date = st.session_state.period_start
+        end_date = st.session_state.period_end
+    st.session_state.period_start = start_date
+    st.session_state.period_end = end_date
 
     force_synth = st.toggle("오프라인(샘플) 데이터 사용", value=False,
                             help="네트워크 없이 합성 데이터로 동작합니다.")
     n_sims = st.slider("EF 시뮬레이션 수", 1000, 20000, EF_SIMULATIONS, step=1000)
 
     st.divider()
-    st.markdown("### 📚 자산군")
+    st.markdown("### 📚 자산군 (상장일)")
     for t, meta in ASSETS.items():
         st.markdown(
             f"<div style='padding:4px 0'>"
             f"<span style='color:{meta['color']};font-weight:700'>● {t}</span> "
-            f"<span style='color:{COLORS['muted']}'>{meta['name']} · {meta['category']}</span>"
+            f"<span style='color:{COLORS['muted']}'>{meta['name']}<br>"
+            f"&nbsp;&nbsp;상장: {meta['inception']}</span>"
             f"</div>",
             unsafe_allow_html=True,
         )
+    st.caption(
+        f"💡 4개 자산 모두 데이터가 있는 공통 시작일: **{EARLIEST_COMMON_DATE}** (GLD 상장일)"
+    )
 
 
 # ---------- Data load (cached) ---------------------------------------------
@@ -112,10 +147,19 @@ corr = analysis.correlation(prices)
 hdr_left, hdr_right = st.columns([3, 1])
 with hdr_left:
     st.title("📊 평균-분산 포트폴리오 분석 대시보드")
+    actual_start = prices.index.min().date()
+    actual_end = prices.index.max().date()
+    years_covered = (actual_end - actual_start).days / 365.25
     st.caption(
-        f"분석 기간: **{prices.index.min().date()} ~ {prices.index.max().date()}** · "
+        f"분석 기간: **{actual_start} ~ {actual_end}** ({years_covered:.1f}년) · "
         f"영업일 {len(prices):,}개 · 자산 {len(prices.columns)}개"
     )
+    if (actual_start - start_date).days > 30:
+        st.warning(
+            f"⚠️ 요청한 시작일 **{start_date}** 보다 **{actual_start}** 부터 데이터를 사용했습니다 "
+            f"(가장 늦게 상장된 GLD: 2004-11-18 기준). "
+            f"4개 ETF 공통 데이터가 필요해 더 이른 기간은 분석 불가합니다."
+        )
 with hdr_right:
     label = "Yahoo Finance 실데이터" if source == "yfinance" else "합성 샘플 데이터"
     st.markdown(
