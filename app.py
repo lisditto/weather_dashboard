@@ -6,14 +6,13 @@ Run: streamlit run app.py
 from __future__ import annotations
 
 import datetime as dt
-import io
 import textwrap
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 
-from portfolio_dashboard import analysis, charts, data, portfolio
+from portfolio_dashboard import analysis, charts, data, portfolio, report
 from portfolio_dashboard.config import (
     COLORS,
     DEFAULT_PERIOD_YEARS,
@@ -22,6 +21,14 @@ from portfolio_dashboard.config import (
     TRADING_DAYS,
     color_for,
 )
+from portfolio_dashboard.presets import COMMON_TICKERS, PRESETS
+
+
+# ---------- Alert helper ----------------------------------------------------
+def alert(kind: str, msg: str) -> None:
+    """Single entry-point for inline alerts; keeps tone/icon consistent."""
+    {"info": st.info, "warn": st.warning, "error": st.error,
+     "success": st.success}.get(kind, st.info)(msg)
 
 st.set_page_config(
     page_title="Portfolio Analytics",
@@ -299,6 +306,56 @@ hr {{ border: none !important; border-top: 1px solid var(--border) !important; m
   font-size: 15px;
 }}
 
+/* KPI strip — hero metrics row */
+.kpi-strip {{
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 8px 0 4px 0;
+}}
+@media (max-width: 768px) {{
+  .kpi-strip {{ grid-template-columns: repeat(2, 1fr); }}
+}}
+.kpi {{
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}}
+.kpi-label {{
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted-fg);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}}
+.kpi-value {{
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}}
+.kpi-value.pos {{ color: var(--positive); }}
+.kpi-value.neg {{ color: var(--negative); }}
+.kpi-value.warn {{ color: var(--warning); }}
+.kpi-value.neu {{ color: var(--fg); }}
+
+/* Skeleton loader — shown while async data loads */
+.skeleton {{
+  background: linear-gradient(90deg, var(--border-soft) 25%, var(--border) 50%, var(--border-soft) 75%);
+  background-size: 200% 100%;
+  animation: skel 1.4s ease-in-out infinite;
+  border-radius: var(--radius);
+}}
+@keyframes skel {{
+  0%   {{ background-position: 200% 0; }}
+  100% {{ background-position: -200% 0; }}
+}}
+
 /* Toggle / Checkbox — make handle visible in both themes */
 [data-testid="stWidgetLabel"] label, .stToggle label {{ color: var(--fg); font-size: 14px; }}
 .stCheckbox [role="checkbox"], .stToggle [role="checkbox"] {{
@@ -385,25 +442,41 @@ def load_benchmark(ticker: str, start: dt.date, end: dt.date, force_synth: bool)
     return df
 
 
+# Cache key derived from the data identity, not its CSV serialisation —
+# avoids the round-trip cost and float-precision drift of to_csv/read_csv.
+def _df_signature(df: pd.DataFrame) -> tuple:
+    return (tuple(df.columns), df.index[0].isoformat(), df.index[-1].isoformat(), len(df))
+
+
 @st.cache_data(show_spinner="EF 시뮬레이션 중…", ttl=60 * 30)
-def cached_simulate(prices_csv: str, n: int) -> pd.DataFrame:
-    df = pd.read_csv(io.StringIO(prices_csv), index_col=0, parse_dates=True)
-    return portfolio.simulate_frontier(df, n_sims=n)
+def _simulate_keyed(_prices: pd.DataFrame, _sig: tuple, n: int) -> pd.DataFrame:
+    return portfolio.simulate_frontier(_prices, n_sims=n)
+
+
+def cached_simulate(prices: pd.DataFrame, n: int) -> pd.DataFrame:
+    return _simulate_keyed(prices, _df_signature(prices), n)
 
 
 @st.cache_data(show_spinner="리밸런싱 시뮬레이션 중…", ttl=60 * 30)
-def cached_rebalance(prices_csv: str, weights_str: str) -> dict[str, list]:
-    df = pd.read_csv(io.StringIO(prices_csv), index_col=0, parse_dates=True)
-    w = np.array([float(x) for x in weights_str.split(",")])
-    raw = analysis.rebalance_backtest(df, w)
-    return {k: (list(v.index.astype(str)), list(v.values)) for k, v in raw.items()}
+def _rebalance_keyed(_prices: pd.DataFrame, _sig: tuple, weights_key: tuple) -> dict[str, pd.Series]:
+    w = np.array(weights_key)
+    return analysis.rebalance_backtest(_prices, w)
+
+
+def cached_rebalance(prices: pd.DataFrame, weights: np.ndarray) -> dict[str, pd.Series]:
+    return _rebalance_keyed(prices, _df_signature(prices), tuple(round(float(x), 6) for x in weights))
 
 
 @st.cache_data(show_spinner="몬테카를로 시뮬레이션 중…", ttl=60 * 30)
-def cached_forward_mc(prices_csv: str, weights_str: str, years: int, initial: float) -> pd.DataFrame:
-    df = pd.read_csv(io.StringIO(prices_csv), index_col=0, parse_dates=True)
-    w = np.array([float(x) for x in weights_str.split(",")])
-    return portfolio.forward_monte_carlo(df, w, years=years, n_sims=500, initial=initial)
+def _forward_mc_keyed(_prices: pd.DataFrame, _sig: tuple, weights_key: tuple,
+                      years: int, initial: float) -> pd.DataFrame:
+    w = np.array(weights_key)
+    return portfolio.forward_monte_carlo(_prices, w, years=years, n_sims=500, initial=initial)
+
+
+def cached_forward_mc(prices: pd.DataFrame, weights: np.ndarray, years: int, initial: float) -> pd.DataFrame:
+    return _forward_mc_keyed(prices, _df_signature(prices),
+                             tuple(round(float(x), 6) for x in weights), years, initial)
 
 
 # ---------- Sidebar -----------------------------------------------------------
@@ -411,6 +484,39 @@ with st.sidebar:
     st.markdown("<div class='section-eyebrow'>Portfolio</div>", unsafe_allow_html=True)
     st.markdown("### 보유 종목")
     st.caption("티커와 비중을 입력하세요 — 예: AAPL, BTC-USD, 005930.KS")
+
+    # Preset selector — applies a named portfolio recipe in one click.
+    preset_choice = st.selectbox(
+        "프리셋",
+        list(PRESETS.keys()),
+        index=0,
+        key="preset_sel",
+        help="검증된 자산배분 모델을 한 번에 불러옵니다",
+    )
+    if preset_choice != "Custom" and st.session_state.get("_last_preset") != preset_choice:
+        st.session_state.portfolio = [dict(a) for a in PRESETS[preset_choice]]
+        st.session_state._last_preset = preset_choice
+        _reset_row_widgets()
+        st.rerun()
+    elif preset_choice == "Custom":
+        st.session_state._last_preset = "Custom"
+
+    # Quick-add from curated ETF list — one tap to append.
+    held = {a["ticker"] for a in st.session_state.portfolio}
+    addable = [(t, label) for t, label in COMMON_TICKERS if t not in held]
+    if addable:
+        labels = [f"{t} — {label}" for t, label in addable]
+        sel = st.selectbox(
+            "+ 인기 ETF 빠른 추가",
+            ["선택…"] + labels,
+            key="quickadd_sel",
+            help="대표 ETF·지수 30선",
+        )
+        if sel != "선택…":
+            chosen = addable[labels.index(sel)][0]
+            st.session_state.portfolio.append({"ticker": chosen, "weight": 0.0})
+            _reset_row_widgets()
+            st.rerun()
 
     rm_idx = None
     for i, asset in enumerate(st.session_state.portfolio):
@@ -610,15 +716,40 @@ st.caption(
     f"영업일 {len(prices):,}개 · 자산 {len(prices.columns)}개"
 )
 if missing:
-    st.warning(
+    alert("warn",
         f"다음 티커는 데이터를 가져올 수 없어 제외되었습니다: **{', '.join(missing)}**. "
         f"오타이거나 상장폐지/거래정지된 종목일 수 있습니다."
     )
 if (actual_start - start_date).days > 30:
-    st.info(
+    alert("info",
         f"일부 자산의 상장일이 늦어 실제 분석 시작일은 **{actual_start}** 입니다. "
         f"(여러 자산의 공통 데이터 구간 자동 적용)"
     )
+
+# ---------- KPI strip — Linear/Vercel-style hero metrics -------------------
+_total_ret = float((prices.iloc[-1] / prices.iloc[0] - 1) @ w_array) * 100
+_p_mdd = float(analysis.max_drawdown(
+    pd.Series(((prices / prices.iloc[0]) * w_array).sum(axis=1), index=prices.index).to_frame("p")
+).iloc[0]) * 100
+_kpi = [
+    ("연 기대수익률", f"{stats.annual_return*100:+.2f}%",
+     "pos" if stats.annual_return >= 0 else "neg"),
+    ("연 변동성", f"{stats.annual_vol*100:.2f}%", "neu"),
+    ("샤프 지수", f"{stats.sharpe:.2f}",
+     "pos" if stats.sharpe >= 1 else "warn" if stats.sharpe >= 0.5 else "neg"),
+    ("기간 누적 수익률", f"{_total_ret:+.2f}%",
+     "pos" if _total_ret >= 0 else "neg"),
+]
+st.markdown(
+    "<div class='kpi-strip'>"
+    + "".join(
+        f"<div class='kpi'><span class='kpi-label'>{label}</span>"
+        f"<span class='kpi-value {cls}'>{value}</span></div>"
+        for label, value, cls in _kpi
+    )
+    + "</div>",
+    unsafe_allow_html=True,
+)
 st.divider()
 
 
@@ -783,9 +914,55 @@ with col_metrics:
         "MDD(%)": "",
     })
     csv_bytes = pd.DataFrame(export_rows).to_csv(index=False).encode("utf-8-sig")
-    st.download_button(
-        "분석 결과 CSV 다운로드", csv_bytes,
+
+    dl1, dl2 = st.columns(2)
+    dl1.download_button(
+        "CSV 다운로드", csv_bytes,
         file_name="portfolio_analysis.csv", mime="text/csv",
+        use_container_width=True,
+    )
+
+    # Self-contained HTML report — bundles metrics table + key figures.
+    summary_for_report = pd.DataFrame(export_rows).set_index("자산")
+    if not bench_aligned.empty:
+        disp_for_report = pd.concat([prices, bench_aligned], axis=1).dropna()
+        norm_for_report = data.normalize(disp_for_report)
+        rets_for_report = analysis.daily_returns(disp_for_report)
+        cmap_for_report = {**color_map, **bench_color_map}
+    else:
+        norm_for_report = data.normalize(prices)
+        rets_for_report = returns
+        cmap_for_report = color_map
+
+    report_metrics = {
+        "연 기대수익률": f"{stats.annual_return*100:+.2f}%",
+        "연 변동성": f"{stats.annual_vol*100:.2f}%",
+        "샤프 지수": f"{stats.sharpe:.3f}",
+        "기간 누적 수익률": f"{_total_ret:+.2f}%",
+    }
+    report_figs = {
+        "자산 가격 추이": charts.price_line_chart(
+            norm_for_report, rets_for_report, cmap_for_report,
+            benchmark_tickers=bench_tickers_set,
+        ),
+        "포트폴리오 비중": charts.weights_donut(
+            norm_w, stats.annual_return, stats.annual_vol, color_map,
+        ),
+    }
+    if len(tickers) >= 2:
+        report_figs["상관관계"] = charts.correlation_heatmap(corr)
+
+    html_bytes = report.build_report(
+        title="포트폴리오 분석 리포트",
+        period=(actual_start, actual_end),
+        summary_df=summary_for_report,
+        portfolio_metrics=report_metrics,
+        figures=report_figs,
+    ).encode("utf-8")
+    dl2.download_button(
+        "HTML 리포트 다운로드", html_bytes,
+        file_name=f"portfolio_report_{actual_end}.html",
+        mime="text/html",
         use_container_width=True,
     )
 
@@ -795,7 +972,7 @@ st.divider()
 # ---------- SECTION 4: 포트폴리오 구성 추천 --------------------------------
 with st.expander("04 · 포트폴리오 구성 추천 (Efficient Frontier)", expanded=True):
     if len(tickers) >= 2:
-        sims = cached_simulate(prices.to_csv(), n_sims)
+        sims = cached_simulate(prices, n_sims)
         max_sharpe_opt = portfolio.optimize(prices, "max_sharpe")
         min_vol_opt = portfolio.optimize(prices, "min_vol")
 
@@ -858,11 +1035,7 @@ with st.expander("05 · 롤링 지표", expanded=False):
 
 # ---------- SECTION 6: 리밸런싱 시뮬레이션 ----------------------------------
 with st.expander("06 · 리밸런싱 시뮬레이션", expanded=False):
-    rb_raw = cached_rebalance(prices.to_csv(), ",".join(str(x) for x in w_array))
-    rb_strategies = {
-        k: pd.Series(vals, index=pd.to_datetime(dates))
-        for k, (dates, vals) in rb_raw.items()
-    }
+    rb_strategies = cached_rebalance(prices, w_array)
     rb_left, rb_right = _cols(2, 1)
     with rb_left:
         st.plotly_chart(charts.rebalancing_chart(rb_strategies), use_container_width=True)
@@ -887,10 +1060,7 @@ with st.expander("06 · 리밸런싱 시뮬레이션", expanded=False):
 
 # ---------- SECTION 7: 미래 가치 시뮬레이션 ---------------------------------
 with st.expander("07 · 미래 가치 시뮬레이션", expanded=False):
-    mc_df = cached_forward_mc(
-        prices.to_csv(), ",".join(str(x) for x in w_array),
-        mc_years, float(initial_inv),
-    )
+    mc_df = cached_forward_mc(prices, w_array, mc_years, float(initial_inv))
     mc_left, mc_right = _cols(2, 1)
     with mc_left:
         st.plotly_chart(charts.forward_mc_chart(mc_df, float(initial_inv)), use_container_width=True)
