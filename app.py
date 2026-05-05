@@ -171,10 +171,10 @@ h4, h5, h6 {{ font-size: 15px !important; line-height: 1.4 !important; font-weig
 .badge-mid  {{ color: var(--warning);  border-color: color-mix(in srgb, var(--warning) 35%, var(--border)); }}
 .badge-bad  {{ color: var(--negative); border-color: color-mix(in srgb, var(--negative) 35%, var(--border)); }}
 
-/* shadcn Button — default (primary) */
+/* shadcn Button — default (primary). The selectors include all descendants
+   so the broad `color: var(--fg)` cascade above doesn't leak in. */
 .stButton > button, .stDownloadButton > button {{
   background-color: var(--primary) !important;
-  color: var(--primary-fg) !important;
   border: 1px solid var(--primary) !important;
   border-radius: var(--radius) !important;
   font-family: 'Inter', sans-serif !important;
@@ -185,6 +185,10 @@ h4, h5, h6 {{ font-size: 15px !important; line-height: 1.4 !important; font-weig
   padding: 8px 14px !important;
   box-shadow: 0 1px 2px 0 rgba(0,0,0,0.04);
   transition: opacity 120ms ease;
+}}
+.stButton > button, .stButton > button *,
+.stDownloadButton > button, .stDownloadButton > button * {{
+  color: var(--primary-fg) !important;
 }}
 .stButton > button:hover, .stDownloadButton > button:hover {{
   opacity: 0.9 !important;
@@ -243,12 +247,47 @@ hr {{ border: none !important; border-top: 1px solid var(--border) !important; m
   background: var(--card) !important;
 }}
 
-/* DataFrame */
+/* DataFrame (Glide grid uses internal theme — fall back to st.table where
+   possible; this just keeps the wrapper from looking wrong) */
 [data-testid="stDataFrame"] {{
   border-radius: var(--radius);
   overflow: hidden;
   border: 1px solid var(--border);
+  background: var(--card) !important;
 }}
+
+/* Plotly chart container — strip any inherited dark background */
+[data-testid="stPlotlyChart"], .js-plotly-plot, .plot-container {{
+  background: transparent !important;
+}}
+[data-testid="element-container"] {{ background: transparent !important; }}
+
+/* st.table — native HTML table, follows our cascade */
+[data-testid="stTable"] table {{
+  background: var(--card) !important;
+  color: var(--fg) !important;
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}}
+[data-testid="stTable"] th, [data-testid="stTable"] td {{
+  background: var(--card) !important;
+  color: var(--fg) !important;
+  border-bottom: 1px solid var(--border-soft) !important;
+  padding: 8px 12px !important;
+  text-align: left !important;
+}}
+[data-testid="stTable"] thead th {{
+  font-weight: 500 !important;
+  color: var(--muted-fg) !important;
+  font-size: 12px !important;
+  text-transform: none;
+}}
+[data-testid="stTable"] tbody tr:last-child td {{ border-bottom: none !important; }}
 
 /* Expander — flat with border */
 [data-testid="stExpander"] {{
@@ -261,8 +300,29 @@ hr {{ border: none !important; border-top: 1px solid var(--border) !important; m
   font-size: 15px;
 }}
 
-/* Toggle */
+/* Toggle / Checkbox — make handle visible in both themes */
 [data-testid="stWidgetLabel"] label, .stToggle label {{ color: var(--fg); font-size: 14px; }}
+.stCheckbox [role="checkbox"], .stToggle [role="checkbox"] {{
+  border: 1px solid var(--border) !important;
+  background: var(--card) !important;
+}}
+/* Native switch (newer Streamlit) */
+[data-baseweb="checkbox"] > div:first-child {{
+  border: 1px solid var(--border) !important;
+}}
+[data-baseweb="checkbox"][aria-checked="true"] > div:first-child,
+[data-baseweb="checkbox"] input:checked + div {{
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+}}
+
+/* Slider track visibility in light mode */
+[data-baseweb="slider"] > div > div {{
+  background: var(--border) !important;
+}}
+[data-baseweb="slider"] > div > div > div {{
+  background: var(--primary) !important;
+}}
 </style>
 """).strip()
 
@@ -787,7 +847,7 @@ with st.expander("04 · 포트폴리오 구성 추천 (Efficient Frontier)", exp
                     "최소 변동성 (%)": round(w_min * 100, 2),
                     "현재 (%)": round(norm_w[t] * 100, 2),
                 })
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            st.table(pd.DataFrame(rows).set_index("자산"))
             st.markdown(
                 f"- **최대 샤프** — 수익률 {max_sharpe_opt.annual_return*100:+.2f}% · "
                 f"변동성 {max_sharpe_opt.annual_vol*100:.2f}% · 샤프 {max_sharpe_opt.sharpe:.3f}\n"
@@ -849,7 +909,7 @@ with st.expander("06 · 리밸런싱 시뮬레이션", expanded=False):
                 "연 변동성 (%)": round(ann_vol_rb, 2),
                 "샤프": round(sharpe_rb, 3),
             })
-        st.dataframe(pd.DataFrame(rb_rows), hide_index=True, use_container_width=True)
+        st.table(pd.DataFrame(rb_rows).set_index("전략"))
         st.caption("동일 자산·기간·비중, 리밸런싱 주기만 다르게 비교합니다.")
 
 
