@@ -180,6 +180,19 @@ if "period_end" not in st.session_state:
     st.session_state.period_end = dt.date.today()
 
 
+def _reset_row_widgets() -> None:
+    """Clear all per-row widget keys so they reinitialize from portfolio dict.
+
+    Streamlit forbids writing to a widget's session_state key after the
+    widget has been instantiated. To programmatically change a value
+    (e.g. after "균등 배분" or "최대 샤프 적용"), we delete the keys and
+    rerun — the widgets repopulate from the underlying portfolio list.
+    """
+    for k in list(st.session_state.keys()):
+        if k.startswith("t_") or k.startswith("w_") or k.startswith("rm_"):
+            del st.session_state[k]
+
+
 # ---------- Sidebar: portfolio editor + period --------------------------
 with st.sidebar:
     st.markdown("### 💼 내 포트폴리오")
@@ -214,19 +227,21 @@ with st.sidebar:
 
     if rm_idx is not None:
         st.session_state.portfolio.pop(rm_idx)
+        _reset_row_widgets()
         st.rerun()
 
     bc1, bc2 = st.columns(2)
     if bc1.button("＋ 종목 추가", use_container_width=True):
         st.session_state.portfolio.append({"ticker": "", "weight": 0.0})
+        _reset_row_widgets()
         st.rerun()
     if bc2.button("균등 배분", use_container_width=True):
         valid = [a for a in st.session_state.portfolio if a["ticker"]]
         if valid:
             eq = round(100.0 / len(valid), 2)
-            for j, a in enumerate(st.session_state.portfolio):
+            for a in st.session_state.portfolio:
                 a["weight"] = eq if a["ticker"] else 0.0
-                st.session_state[f"w_{j}"] = a["weight"]
+            _reset_row_widgets()
             st.rerun()
 
     total_weight = sum(a["weight"] for a in st.session_state.portfolio if a["ticker"])
@@ -503,17 +518,15 @@ if len(tickers) >= 2:
             for i, t in enumerate(tickers):
                 for j, a in enumerate(st.session_state.portfolio):
                     if a["ticker"] == t:
-                        new_w = float(round(max_sharpe_opt.weights[i] * 100, 1))
-                        st.session_state.portfolio[j]["weight"] = new_w
-                        st.session_state[f"w_{j}"] = new_w
+                        a["weight"] = float(round(max_sharpe_opt.weights[i] * 100, 1))
+            _reset_row_widgets()
             st.rerun()
         if st.button("최소 변동성 비중 적용", use_container_width=True, key="apply_min"):
             for i, t in enumerate(tickers):
                 for j, a in enumerate(st.session_state.portfolio):
                     if a["ticker"] == t:
-                        new_w = float(round(min_vol_opt.weights[i] * 100, 1))
-                        st.session_state.portfolio[j]["weight"] = new_w
-                        st.session_state[f"w_{j}"] = new_w
+                        a["weight"] = float(round(min_vol_opt.weights[i] * 100, 1))
+            _reset_row_widgets()
             st.rerun()
 else:
     st.info("Efficient Frontier 분석은 자산 2개 이상에서 가능합니다.")
