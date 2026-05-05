@@ -362,12 +362,12 @@ hr {{ border: none !important; border-top: 1px solid var(--border) !important; m
   border: 1px solid var(--border) !important;
   background: var(--card) !important;
 }}
-/* Native switch (newer Streamlit) */
-[data-baseweb="checkbox"] > div:first-child {{
+/* Native switch — scope strictly to the toggle's inner switch element so the
+   primary-color fill never bleeds into the label container. */
+[data-testid="stToggle"] [role="checkbox"] {{
   border: 1px solid var(--border) !important;
 }}
-[data-baseweb="checkbox"][aria-checked="true"] > div:first-child,
-[data-baseweb="checkbox"] input:checked + div {{
+[data-testid="stToggle"] [role="checkbox"][aria-checked="true"] {{
   background: var(--primary) !important;
   border-color: var(--primary) !important;
 }}
