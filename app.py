@@ -63,11 +63,39 @@ html, body, [class*="css"], .stApp, .stMarkdown, p, span, div, li, label {{
 }}
 code, kbd, pre, .stCode {{ font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }}
 
-.stApp {{ background-color: var(--bg); color: var(--fg); }}
+.stApp {{
+  background-color: var(--bg) !important;
+  color: var(--fg) !important;
+  /* Override Streamlit's internal theme tokens so native widgets follow */
+  --text-color: var(--fg);
+  --default-textColor: var(--fg);
+  --background-color: var(--bg);
+  --secondary-background-color: var(--card-deep);
+  --primary-color: var(--primary);
+}}
+
+/* Force foreground color on all text-bearing containers — Streamlit ships
+   with high-specificity dark-theme rules that win over plain `color`. */
+.stApp,
+.stApp p, .stApp span, .stApp li, .stApp div,
+.stApp label,
+.stMarkdown, .stMarkdown *,
+[data-testid="stMarkdownContainer"], [data-testid="stMarkdownContainer"] *,
+[data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *,
+.stToggle, .stToggle *, .stCheckbox, .stCheckbox *,
+.stRadio, .stRadio *, .stSelectbox label,
+[data-baseweb="checkbox"] *, [data-baseweb="radio"] * {{
+  color: var(--fg) !important;
+}}
+
+/* Native alerts (st.warning/info/error/success) — keep tinted bg, fix text */
+.stAlert, .stAlert *, [data-baseweb="notification"] * {{
+  color: var(--fg) !important;
+}}
 
 h1, h2, h3, h4, h5, h6 {{
   font-family: 'Inter', sans-serif !important;
-  color: var(--fg);
+  color: var(--fg) !important;
   letter-spacing: -0.025em !important;
 }}
 h1 {{ font-size: 36px !important; line-height: 1.1 !important; font-weight: 600 !important; margin-bottom: 8px !important; }}
@@ -114,10 +142,18 @@ h4, h5, h6 {{ font-size: 15px !important; line-height: 1.4 !important; font-weig
 }}
 .metric-row span:first-child {{ color: var(--muted-fg); cursor: default; }}
 .metric-row span[title]:first-child {{ border-bottom: 1px dotted var(--stone); }}
-.pos {{ color: var(--positive); font-weight: 500; font-variant-numeric: tabular-nums; }}
-.neg {{ color: var(--negative); font-weight: 500; font-variant-numeric: tabular-nums; }}
-.neu {{ color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; }}
-.warn {{ color: var(--warning); font-weight: 500; font-variant-numeric: tabular-nums; }}
+/* Semantic colors — declared last + !important so the broad foreground
+   override above doesn't swallow them. */
+.stApp .pos, span.pos {{ color: var(--positive) !important; font-weight: 500; font-variant-numeric: tabular-nums; }}
+.stApp .neg, span.neg {{ color: var(--negative) !important; font-weight: 500; font-variant-numeric: tabular-nums; }}
+.stApp .neu, span.neu {{ color: var(--fg) !important; font-weight: 500; font-variant-numeric: tabular-nums; }}
+.stApp .warn, span.warn {{ color: var(--warning) !important; font-weight: 500; font-variant-numeric: tabular-nums; }}
+.stApp .section-eyebrow {{ color: var(--muted-fg) !important; }}
+.stApp .metric-card .sub {{ color: var(--muted-fg) !important; }}
+.stApp .metric-row span:first-child {{ color: var(--muted-fg) !important; }}
+.stApp .badge-good {{ color: var(--positive) !important; }}
+.stApp .badge-mid  {{ color: var(--warning) !important; }}
+.stApp .badge-bad  {{ color: var(--negative) !important; }}
 
 /* shadcn Badge — outline variant */
 .badge {{
