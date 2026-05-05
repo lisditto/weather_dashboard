@@ -38,13 +38,24 @@ def _base_layout(**overrides) -> dict:
         paper_bgcolor=PAPER_BG,
         plot_bgcolor=PLOT_BG,
         font=dict(color=TEXT, family="Inter, -apple-system, Segoe UI, sans-serif"),
-        margin=dict(l=40, r=20, t=40, b=40),
+        # Generous top margin so chart title + horizontal legend don't collide.
+        margin=dict(l=50, r=20, t=90, b=50),
         xaxis=dict(gridcolor=GRID, zerolinecolor=GRID),
         yaxis=dict(gridcolor=GRID, zerolinecolor=GRID),
         legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor=GRID, borderwidth=1),
         hoverlabel=dict(bgcolor=_C["bg"], bordercolor=GRID, font=dict(color=TEXT)),
     )
     base.update(overrides)
+    # Promote string titles to a dict with consistent placement (top-left,
+    # padded so a horizontal legend below at y≈1.08 has room to breathe).
+    if isinstance(base.get("title"), str):
+        base["title"] = dict(
+            text=base["title"],
+            x=0, xanchor="left",
+            y=0.98, yanchor="top",
+            pad=dict(t=4, b=12),
+            font=dict(size=15, color=TEXT),
+        )
     return base
 
 
@@ -94,7 +105,7 @@ def price_line_chart(
             height=420,
             xaxis=dict(gridcolor=GRID, rangeslider=dict(visible=True, bgcolor=_C["bg"])),
             yaxis=dict(gridcolor=GRID, title="정규화 가격"),
-            legend=dict(orientation="h", x=1, y=1.08, xanchor="right", bgcolor="rgba(0,0,0,0)"),
+            legend=dict(orientation="h", x=1, y=1.02, xanchor="right", yanchor="bottom", bgcolor="rgba(0,0,0,0)"),
         )
     )
     return fig
@@ -316,7 +327,7 @@ def rebalancing_chart(strategies: dict[str, pd.Series]) -> go.Figure:
         title="리밸런싱 전략별 누적 수익률",
         height=420,
         yaxis=dict(gridcolor=GRID, title="누적 수익률 %", ticksuffix="%"),
-        legend=dict(orientation="h", x=0, y=1.1, bgcolor="rgba(0,0,0,0)"),
+        legend=dict(orientation="h", x=0, y=1.02, yanchor="bottom", bgcolor="rgba(0,0,0,0)"),
     ))
     return fig
 
@@ -361,6 +372,6 @@ def forward_mc_chart(pct_df: pd.DataFrame, initial: float) -> go.Figure:
         title="포트폴리오 미래 가치 시뮬레이션 (GBM · 500회)",
         height=460,
         yaxis=dict(gridcolor=GRID, title="포트폴리오 가치 (원)", tickformat=",.0f"),
-        legend=dict(orientation="h", x=0, y=1.1, bgcolor="rgba(0,0,0,0)"),
+        legend=dict(orientation="h", x=0, y=1.02, yanchor="bottom", bgcolor="rgba(0,0,0,0)"),
     ))
     return fig
