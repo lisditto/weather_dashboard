@@ -330,34 +330,23 @@ corr = analysis.correlation(prices)
 
 
 # ---------- Header ----------------------------------------------------------
-hdr_left, hdr_right = st.columns([3, 1])
-with hdr_left:
-    st.markdown("<div class='hero-strip'>Mean-Variance · Modern Portfolio Theory</div>",
-                unsafe_allow_html=True)
-    st.title("포트폴리오 분석 대시보드")
-    actual_start = prices.index.min().date()
-    actual_end = prices.index.max().date()
-    years_covered = (actual_end - actual_start).days / 365.25
-    st.caption(
-        f"분석 기간 **{actual_start} → {actual_end}** ({years_covered:.1f}년) · "
-        f"영업일 {len(prices):,}개 · 자산 {len(prices.columns)}개"
+st.title("포트폴리오 분석 대시보드")
+actual_start = prices.index.min().date()
+actual_end = prices.index.max().date()
+years_covered = (actual_end - actual_start).days / 365.25
+st.caption(
+    f"분석 기간 **{actual_start} → {actual_end}** ({years_covered:.1f}년) · "
+    f"영업일 {len(prices):,}개 · 자산 {len(prices.columns)}개"
+)
+if missing:
+    st.warning(
+        f"⚠️ 다음 티커는 데이터를 가져올 수 없어 제외되었습니다: **{', '.join(missing)}**. "
+        f"오타이거나 상장폐지/거래정지된 종목일 수 있습니다."
     )
-    if missing:
-        st.warning(
-            f"⚠️ 다음 티커는 데이터를 가져올 수 없어 제외되었습니다: **{', '.join(missing)}**. "
-            f"오타이거나 상장폐지/거래정지된 종목일 수 있습니다."
-        )
-    if (actual_start - start_date).days > 30:
-        st.info(
-            f"ℹ️ 일부 자산의 상장일이 늦어 실제 분석 시작일은 **{actual_start}** 입니다. "
-            f"(여러 자산의 공통 데이터 구간 자동 적용)"
-        )
-with hdr_right:
-    label = "Yahoo Finance 실데이터" if source == "yfinance" else "합성 샘플 데이터"
-    st.markdown(
-        f"<div style='text-align:right;margin-top:14px'>"
-        f"<span class='source-pill'>📡 {label}</span></div>",
-        unsafe_allow_html=True,
+if (actual_start - start_date).days > 30:
+    st.info(
+        f"ℹ️ 일부 자산의 상장일이 늦어 실제 분석 시작일은 **{actual_start}** 입니다. "
+        f"(여러 자산의 공통 데이터 구간 자동 적용)"
     )
 
 st.divider()
