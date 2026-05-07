@@ -33,6 +33,20 @@ PRESETS: dict[str, list[dict]] = {
         {"ticker": "SHY", "weight": 20.0},
         {"ticker": "GLD", "weight": 20.0},
     ],
+    "한국 KOSPI 대형주": [
+        {"ticker": "005930.KS", "weight": 30.0},  # 삼성전자
+        {"ticker": "000660.KS", "weight": 20.0},  # SK하이닉스
+        {"ticker": "005380.KS", "weight": 15.0},  # 현대차
+        {"ticker": "035420.KS", "weight": 20.0},  # NAVER
+        {"ticker": "000270.KS", "weight": 15.0},  # 기아
+    ],
+    "한국·미국 혼합": [
+        {"ticker": "SPY", "weight": 40.0},
+        {"ticker": "005930.KS", "weight": 20.0},  # 삼성전자
+        {"ticker": "035420.KS", "weight": 15.0},  # NAVER
+        {"ticker": "035720.KS", "weight": 15.0},  # 카카오
+        {"ticker": "GLD", "weight": 10.0},
+    ],
 }
 
 # Curated quick-add list — common, liquid US-listed ETFs across asset classes.
@@ -62,9 +76,26 @@ COMMON_TICKERS: list[tuple[str, str]] = [
     ("VNQI", "글로벌 리츠"),
     ("BTC-USD", "비트코인"),
     ("ETH-USD", "이더리움"),
-    ("^KS11", "코스피"),
-    ("^KQ11", "코스닥"),
+    ("^KS11", "코스피 지수"),
+    ("^KQ11", "코스닥 지수"),
     ("EWJ", "일본"),
     ("MCHI", "중국"),
     ("INDA", "인도"),
+    # ── 한국 KOSPI 대형주 ─────────────────────────────────────────
+    ("005930.KS", "삼성전자"),
+    ("000660.KS", "SK하이닉스"),
+    ("005380.KS", "현대차"),
+    ("035420.KS", "NAVER"),
+    ("035720.KS", "카카오"),
+    ("000270.KS", "기아"),
+    ("051910.KS", "LG화학"),
+    ("006400.KS", "삼성SDI"),
+    ("207940.KS", "삼성바이오로직스"),
+    ("105560.KS", "KB금융"),
+    ("055550.KS", "신한지주"),
+    ("003550.KS", "LG"),
+    # ── 한국 KOSDAQ ───────────────────────────────────────────────
+    ("247540.KQ", "에코프로비엠"),
+    ("086520.KQ", "에코프로"),
+    ("196170.KQ", "알테오젠"),
 ]

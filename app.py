@@ -483,7 +483,11 @@ def cached_forward_mc(prices: pd.DataFrame, weights: np.ndarray, years: int, ini
 with st.sidebar:
     st.markdown("<div class='section-eyebrow'>Portfolio</div>", unsafe_allow_html=True)
     st.markdown("### 보유 종목")
-    st.caption("티커와 비중을 입력하세요 — 예: AAPL, BTC-USD, 005930.KS")
+    st.caption(
+        "티커와 비중을 입력하세요  \n"
+        "미국: `AAPL` `SPY` `BTC-USD`  \n"
+        "한국: `005930.KS`(코스피) `247540.KQ`(코스닥) 또는 6자리 숫자만 입력 가능"
+    )
 
     # Preset selector — applies a named portfolio recipe in one click.
     preset_choice = st.selectbox(
@@ -507,10 +511,10 @@ with st.sidebar:
     if addable:
         labels = [f"{t} — {label}" for t, label in addable]
         sel = st.selectbox(
-            "+ 인기 ETF 빠른 추가",
+            "+ 빠른 추가 (ETF·한국주식)",
             ["선택…"] + labels,
             key="quickadd_sel",
-            help="대표 ETF·지수 30선",
+            help="대표 ETF·지수 및 한국 KOSPI/KOSDAQ 대형주",
         )
         if sel != "선택…":
             chosen = addable[labels.index(sel)][0]
@@ -541,7 +545,7 @@ with st.sidebar:
             f"margin:-12px 0 6px 0'></div>",
             unsafe_allow_html=True,
         )
-        asset["ticker"] = new_ticker.strip().upper()
+        asset["ticker"] = data.normalize_ticker(new_ticker)
         asset["weight"] = float(new_weight)
 
     if rm_idx is not None:

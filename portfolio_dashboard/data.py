@@ -1,14 +1,38 @@
 """Price data fetching with yfinance, with deterministic synthetic fallback.
 
 Now generic over an arbitrary list of tickers supplied at call time.
+Korean stock codes (6-digit numbers) are auto-resolved to Yahoo Finance
+format (XXXXXX.KS for KOSPI, XXXXXX.KQ for KOSDAQ).
 """
 from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import re
 
 import numpy as np
 import pandas as pd
+
+_KR_CODE = re.compile(r"^\d{6}$")
+
+
+def normalize_ticker(ticker: str) -> str:
+    """Convert user-entered ticker to Yahoo Finance canonical form (no network).
+
+    - 6-digit number  → append .KS (KOSPI default; fetch layer retries .KQ)
+    - Anything else   → upper-case, unchanged
+    """
+    t = ticker.strip().upper()
+    if _KR_CODE.match(t):
+        return t + ".KS"
+    return t
+
+
+def _retry_as_kosdaq(ticker: str) -> str | None:
+    """If ticker ends with .KS and has a 6-digit code, try the .KQ variant."""
+    if ticker.endswith(".KS") and _KR_CODE.match(ticker[:-3]):
+        return ticker[:-3] + ".KQ"
+    return None
 
 
 def _ticker_seed(ticker: str) -> int:
@@ -53,11 +77,12 @@ def fetch_prices(
     source : "yfinance" | "synthetic"
     missing : tickers that returned no data (excluded from result)
     """
-    tickers = [t.strip().upper() for t in tickers if t and t.strip()]
+    tickers = [normalize_ticker(t) for t in tickers if t and t.strip()]
     if not tickers:
         return pd.DataFrame(), "synthetic", []
 
     if force_synthetic:
+        # Even in synthetic mode, keep normalized names for display consistency.
         return _synthetic_prices(tickers, start, end), "synthetic", []
 
     try:
@@ -95,6 +120,35 @@ def fetch_prices(
         for t in all_nan:
             missing.append(t)
         close = close.drop(columns=all_nan, errors="ignore")
+
+        # Retry .KS → .KQ for Korean codes that returned no data.
+        kosdaq_candidates = {t: _retry_as_kosdaq(t) for t in missing if _retry_as_kosdaq(t)}
+        if kosdaq_candidates:
+            retry_tickers = list(kosdaq_candidates.values())
+            retry_df = yf.download(
+                retry_tickers,
+                start=start.isoformat(),
+                end=(end + dt.timedelta(days=1)).isoformat(),
+                auto_adjust=True, progress=False, threads=True, group_by="column",
+            )
+            if retry_df is not None and not retry_df.empty:
+                if isinstance(retry_df.columns, pd.MultiIndex):
+                    retry_close = retry_df["Close"]
+                else:
+                    retry_close = retry_df[["Close"]] if "Close" in retry_df.columns else retry_df
+                    if isinstance(retry_close, pd.Series):
+                        retry_close = retry_close.to_frame(name=retry_tickers[0])
+                    elif retry_close.shape[1] == 1 and len(retry_tickers) == 1:
+                        retry_close.columns = [retry_tickers[0]]
+                for ks_ticker, kq_ticker in kosdaq_candidates.items():
+                    if kq_ticker in retry_close.columns:
+                        col = retry_close[[kq_ticker]].ffill().dropna(how="all")
+                        if not col.isna().all().all():
+                            # Rename to KQ, replace in close, remove from missing
+                            col = col.rename(columns={kq_ticker: kq_ticker})
+                            close = pd.concat([close, col.reindex(close.index)], axis=1)
+                            missing = [t for t in missing if t != ks_ticker]
+
         # Final intersection — only keep rows where ALL remaining tickers are present
         close = close.dropna()
 
